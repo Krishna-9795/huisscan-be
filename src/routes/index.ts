@@ -1,0 +1,15 @@
+import { FastifyInstance } from "fastify";
+
+import healthRoutes from "./health.routes";
+import authRoutes from "./auth.routes";
+import usersRoutes from "./users.routes";
+import savedReportsRoutes from "./saved-reports.routes";
+import invoicesRoutes from "./invoices.routes";
+
+export default async function routes(app: FastifyInstance) {
+  await app.register(healthRoutes);
+  await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(usersRoutes, { prefix: "/users" });
+  await app.register(savedReportsRoutes, { prefix: "/saved-reports" });
+  await app.register(invoicesRoutes, { prefix: "/invoices" });
+}

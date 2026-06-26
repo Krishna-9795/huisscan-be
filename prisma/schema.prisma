@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+}
+
+enum InvoiceStatus {
+  PAID
+  PENDING
+  FAILED
+  REFUNDED
+}
+
+enum PropertyType {
+  ANY
+  APARTMENT
+  HOUSE
+  TOWNHOUSE
+}
+
+enum BuyingStage {
+  EXPLORING
+  SEARCHING
+  VIEWING
+  OFFER_MADE
+  PURCHASED
+}
+
+model User {
+  id            String           @id @default(cuid())
+  email         String           @unique
+  name          String?
+  phone         String?
+  city          String?
+  avatarColor   String           @default("brand")
+  passwordHash  String?
+  role          UserRole         @default(USER)
+  plan          SubscriptionPlan @default(FREE)
+  emailVerified DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  preferences   UserPreference?
+  sessions      Session[]
+  savedReports  SavedReport[]
+  invoices      Invoice[]
+
+  @@map("users")
+}
+
+model UserPreference {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  budgetMin       Int?
+  budgetMax       Int?
+  preferredCities String[]     @default([])
+  propertyType    PropertyType @default(ANY)
+  bedroomsMin     Int?
+  buyingStage     BuyingStage  @default(EXPLORING)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model SavedReport {
+  id         String   @id @default(cuid())
+  userId     String
+  propertyId String
+  address    String
+  reportData Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+  @@index([userId])
+  @@index([propertyId])
+  @@map("saved_reports")
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  userId      String
+  number      String        @unique
+  description String
+  amountCents Int
+  currency    String        @default("EUR")
+  status      InvoiceStatus @default(PAID)
+  provider    String?
+  providerId  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([provider, providerId])
+  @@map("invoices")
+}
