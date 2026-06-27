@@ -6,6 +6,12 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
   PORT: z.coerce.number().default(4000),
+  API_PREFIX: z
+    .string()
+    .trim()
+    .regex(/^$|^\/[a-zA-Z0-9/_-]*$/, "API_PREFIX must be empty or start with /")
+    .transform((value) => value.replace(/\/$/, ""))
+    .default(""),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

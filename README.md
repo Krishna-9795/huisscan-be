@@ -55,6 +55,7 @@ Set `.env` values:
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public"
 JWT_SECRET="change-me"
 PORT=4000
+API_PREFIX=""
 NODE_ENV=development
 FRONTEND_URL="http://localhost:3000"
 ```
@@ -78,6 +79,10 @@ npm run dev
 ```
 
 The API runs at `http://localhost:4000`.
+
+For same-server production deployment behind an existing frontend, see
+`deploy/same-server.md`. In that setup, use `API_PREFIX="/api/v1"` and proxy
+`/api/*` to this backend.
 
 ## Running the App
 
@@ -140,6 +145,9 @@ npm run db:deploy
 Health:
 
 - `GET /health`
+
+When `API_PREFIX="/api/v1"` is set in production, the same route becomes
+`GET /api/v1/health`.
 
 Auth:
 

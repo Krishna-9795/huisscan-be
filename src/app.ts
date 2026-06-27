@@ -17,7 +17,7 @@ export async function buildApp() {
   await app.register(sensiblePlugin);
   await app.register(jwtPlugin);
   await app.register(prismaPlugin);
-  await app.register(routes);
+  await app.register(routes, { prefix: env.API_PREFIX });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
