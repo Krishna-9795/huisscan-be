@@ -17,23 +17,41 @@ export class InvoicesService {
     this.invoicesRepository = new InvoicesRepository(prisma);
   }
 
-  async getAllForUser(currentUser: CurrentUser) {
-    const invoices =
-      currentUser.role === "ADMIN"
-        ? await this.invoicesRepository.findAll()
-        : await this.invoicesRepository.findAllByUserId(currentUser.userId);
+  async getAllForUser(userId: number, currentUser: CurrentUser) {
+    if (!canAccessUserResource(currentUser, userId)) {
+      return null;
+    }
+
+    const invoices = await this.invoicesRepository.findAllByUserId(userId);
 
     return invoices.map(toPublicInvoice);
   }
 
-  async getById(id: number, currentUser: CurrentUser) {
-    const invoice = await this.invoicesRepository.findById(id);
-
-    if (!invoice || !canAccessUserResource(currentUser, invoice.userId)) {
-      return null;
+  async getById(id: number, userId: number, currentUser: CurrentUser) {
+    if (!canAccessUserResource(currentUser, userId)) {
+      return {
+        status: "forbidden" as const,
+      };
     }
 
-    return toPublicInvoice(invoice);
+    const invoice = await this.invoicesRepository.findById(id);
+
+    if (!invoice) {
+      return {
+        status: "not_found" as const,
+      };
+    }
+
+    if (invoice.userId !== userId) {
+      return {
+        status: "forbidden" as const,
+      };
+    }
+
+    return {
+      status: "ok" as const,
+      invoice: toPublicInvoice(invoice),
+    };
   }
 }
 
