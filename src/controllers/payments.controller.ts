@@ -13,10 +13,50 @@ export async function createMolliePayment(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const body = createMolliePaymentSchema.parse(request.body);
+  request.log.info(
+    {
+      method: request.method,
+      contentType: request.headers["content-type"] ?? null,
+    },
+    "Mollie payment create request received",
+  );
+
+  const rawBody = normalizePaymentBody(request.body);
+  const parsedBody = createMolliePaymentSchema.safeParse(rawBody);
+
+  request.log.info(
+    {
+      reportType: rawBody.reportType ?? null,
+      reportId: rawBody.reportId ?? null,
+      address: rawBody.address ?? null,
+    },
+    "Mollie payment create request parsed",
+  );
+
+  if (!parsedBody.success) {
+    return reply.status(400).send({
+      success: false,
+      message: "Invalid payment request",
+      errors: parsedBody.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  const body = parsedBody.data;
   const reportPaymentsService = new ReportPaymentsService(request.server.prisma);
 
   try {
+    request.log.info(
+      {
+        reportType: body.reportType,
+        reportId: body.reportId,
+        address: body.address ?? null,
+      },
+      "Mollie checkout creation starting",
+    );
+
     const checkout = await reportPaymentsService.createMollieCheckout(body);
 
     if (wantsJson(request)) {
@@ -31,6 +71,11 @@ export async function createMolliePayment(
     return reply.redirect(checkout.checkoutUrl, 303);
   } catch (error) {
     if (error instanceof MollieApiError) {
+      request.log.error(
+        { errorMessage: error.message },
+        "Mollie checkout creation failed",
+      );
+
       return reply.status(502).send({
         success: false,
         message: error.message,
@@ -41,6 +86,11 @@ export async function createMolliePayment(
       error instanceof Error &&
       error.message.includes("MOLLIE_API_KEY or MOLLIE_TEST_API_KEY")
     ) {
+      request.log.error(
+        { errorMessage: error.message },
+        "Mollie checkout creation failed",
+      );
+
       return reply.status(500).send({
         success: false,
         message: error.message,
@@ -84,4 +134,33 @@ export async function handleMollieWebhook(
 function wantsJson(request: FastifyRequest) {
   const accept = request.headers.accept ?? "";
   return accept.includes("application/json");
+}
+
+function normalizePaymentBody(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(body as Record<string, unknown>).map(([key, value]) => [
+      key,
+      getFormValue(value),
+    ]),
+  );
+}
+
+function getFormValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return getFormValue(value[0]);
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return value;
 }
