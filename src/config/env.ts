@@ -16,6 +16,9 @@ const envSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+  PUBLIC_APP_URL: z.string().url().optional(),
+  MOLLIE_API_KEY: z.string().min(1).optional(),
+  MOLLIE_TEST_API_KEY: z.string().min(1).optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

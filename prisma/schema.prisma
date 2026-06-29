@@ -123,3 +123,25 @@ model Invoice {
   @@index([provider, providerId])
   @@map("invoices")
 }
+
+model ReportPayment {
+  id              String    @id @default(cuid())
+  molliePaymentId String    @unique
+  checkoutToken   String    @unique
+  reportType      String
+  reportId        String
+  address         String?
+  amountCents     Int
+  currency        String    @default("EUR")
+  status          String
+  checkoutUrl     String?
+  returnTo        String?
+  metadata        Json?
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([reportType, reportId])
+  @@index([status])
+  @@map("report_payments")
+}

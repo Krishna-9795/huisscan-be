@@ -58,6 +58,9 @@ PORT=4000
 API_PREFIX=""
 NODE_ENV=development
 FRONTEND_URL="http://localhost:3000"
+PUBLIC_APP_URL="http://localhost:3000"
+MOLLIE_TEST_API_KEY="test_xxx"
+# MOLLIE_API_KEY="live_xxx"
 ```
 
 Generate Prisma client:
@@ -174,6 +177,12 @@ Invoices:
 
 - `GET /invoices`
 - `GET /invoices/:id`
+
+Payments:
+
+- `POST /payments/mollie/create`
+- `GET /payments/mollie/return`
+- `POST /payments/mollie/webhook`
 
 Protected routes require:
 
