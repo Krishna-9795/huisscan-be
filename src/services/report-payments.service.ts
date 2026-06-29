@@ -1,6 +1,12 @@
 import crypto from "crypto";
 
-import { Prisma, PrismaClient, ReportPayment } from "@prisma/client";
+import {
+  InvoiceStatus,
+  Prisma,
+  PrismaClient,
+  ReportPayment,
+  UserRole,
+} from "@prisma/client";
 
 import { env } from "../config/env";
 import { getPaymentsApiPrefix } from "../helpers/payments-api-prefix";
@@ -9,7 +15,9 @@ import {
   ReportType,
 } from "../schemas/payments.schema";
 import { MollieClientService, MolliePayment } from "./mollie-client.service";
+import { InvoicesRepository } from "../repositories/invoices.repository";
 import { ReportPaymentsRepository } from "../repositories/report-payments.repository";
+import { SavedReportsRepository } from "../repositories/saved-reports.repository";
 
 type CreateCheckoutResult = {
   checkoutUrl: string;
@@ -24,6 +32,15 @@ type PaidReportAccessInput = {
   checkoutToken: string;
 };
 
+type CurrentUser = {
+  userId: string;
+  role: UserRole;
+};
+
+type CreateMollieCheckoutOptions = {
+  userId?: string;
+};
+
 const REPORT_PRICES_CENTS: Record<ReportType, number> = {
   "property-report": 495,
   "last-sale-report": 999,
@@ -31,22 +48,29 @@ const REPORT_PRICES_CENTS: Record<ReportType, number> = {
 };
 
 export class ReportPaymentsService {
+  private readonly invoicesRepository: InvoicesRepository;
   private readonly reportPaymentsRepository: ReportPaymentsRepository;
+  private readonly savedReportsRepository: SavedReportsRepository;
   private readonly mollieClient: MollieClientService;
 
   constructor(
-    prisma: PrismaClient,
+    private readonly prisma: PrismaClient,
     mollieClient = new MollieClientService(),
   ) {
+    this.invoicesRepository = new InvoicesRepository(prisma);
     this.reportPaymentsRepository = new ReportPaymentsRepository(prisma);
+    this.savedReportsRepository = new SavedReportsRepository(prisma);
     this.mollieClient = mollieClient;
   }
 
   async createMollieCheckout(
     input: CreateMolliePaymentInput,
+    options: CreateMollieCheckoutOptions = {},
   ): Promise<CreateCheckoutResult> {
     const checkoutToken = createCheckoutToken();
     const amountCents = REPORT_PRICES_CENTS[input.reportType];
+    const userId =
+      options.userId ?? (await this.getSavedReportOwnerId(input.reportId));
     const baseUrl = getPublicAppUrl();
     const paymentsApiPrefix = getPaymentsApiPrefix();
     const webhookUrl = `${baseUrl}${paymentsApiPrefix}/payments/mollie/webhook`;
@@ -60,6 +84,7 @@ export class ReportPaymentsService {
       checkoutToken,
       reportType: input.reportType,
       reportId: input.reportId,
+      userId: userId ?? null,
       address: input.address ?? null,
       returnTo: input.returnTo ?? null,
     };
@@ -101,6 +126,7 @@ export class ReportPaymentsService {
     }
 
     await this.reportPaymentsRepository.create({
+      userId,
       molliePaymentId: molliePayment.id,
       checkoutToken,
       reportType: input.reportType,
@@ -205,6 +231,15 @@ export class ReportPaymentsService {
     return syncedPayment?.status === "paid";
   }
 
+  async getAllForUser(currentUser: CurrentUser) {
+    const payments =
+      currentUser.role === "ADMIN"
+        ? await this.reportPaymentsRepository.findAll()
+        : await this.reportPaymentsRepository.findAllByUserId(currentUser.userId);
+
+    return payments.map(toPublicReportPayment);
+  }
+
   private async updateStoredPaymentFromMollie(molliePayment: MolliePayment) {
     const storedPayment =
       await this.reportPaymentsRepository.findByMolliePaymentId(
@@ -216,10 +251,16 @@ export class ReportPaymentsService {
     }
 
     const status = normalizeMollieStatus(molliePayment.status);
+    const invoiceId =
+      status === "paid"
+        ? await this.ensureInvoiceForPayment(storedPayment)
+        : storedPayment.invoiceId ?? undefined;
+
     return this.reportPaymentsRepository.updateByMolliePaymentId(
       molliePayment.id,
       {
         status,
+        invoiceId,
         paidAt:
           status === "paid"
             ? parseMollieDate(molliePayment.paidAt) ?? new Date()
@@ -227,6 +268,43 @@ export class ReportPaymentsService {
         metadata: toJsonValue(molliePayment.metadata ?? {}),
       },
     );
+  }
+
+  private async ensureInvoiceForPayment(payment: ReportPayment) {
+    if (!payment.userId) {
+      return payment.invoiceId ?? undefined;
+    }
+
+    if (payment.invoiceId) {
+      return payment.invoiceId;
+    }
+
+    const existingInvoice = await this.invoicesRepository.findByProviderPayment(
+      "mollie",
+      payment.molliePaymentId,
+    );
+
+    if (existingInvoice) {
+      return existingInvoice.id;
+    }
+
+    const invoice = await this.invoicesRepository.create({
+      userId: payment.userId,
+      number: createInvoiceNumber(payment.molliePaymentId),
+      description: getInvoiceDescription(payment),
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+      status: InvoiceStatus.PAID,
+      provider: "mollie",
+      providerId: payment.molliePaymentId,
+    });
+
+    return invoice.id;
+  }
+
+  private async getSavedReportOwnerId(reportId: string) {
+    const savedReport = await this.savedReportsRepository.findById(reportId);
+    return savedReport?.userId;
   }
 }
 
@@ -341,6 +419,17 @@ function getPaymentDescription(reportType: ReportType, reportId: string) {
   return `HuisScan ${reportType} ${reportId}`.slice(0, 255);
 }
 
+function getInvoiceDescription(payment: ReportPayment) {
+  return `HuisScan ${payment.reportType}${payment.address ? ` - ${payment.address}` : ""}`.slice(
+    0,
+    255,
+  );
+}
+
+function createInvoiceNumber(molliePaymentId: string) {
+  return `HS-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${molliePaymentId.slice(-8).toUpperCase()}`;
+}
+
 function formatEuroAmount(amountCents: number) {
   return (amountCents / 100).toFixed(2);
 }
@@ -368,4 +457,24 @@ function parseMollieDate(value: string | undefined) {
 
 function toJsonValue(value: unknown) {
   return value as Prisma.InputJsonValue;
+}
+
+function toPublicReportPayment(payment: ReportPayment) {
+  return {
+    id: payment.id,
+    userId: payment.userId,
+    invoiceId: payment.invoiceId,
+    molliePaymentId: payment.molliePaymentId,
+    checkoutToken: payment.checkoutToken,
+    reportType: payment.reportType,
+    reportId: payment.reportId,
+    address: payment.address,
+    amountCents: payment.amountCents,
+    currency: payment.currency,
+    status: payment.status,
+    checkoutUrl: payment.checkoutUrl,
+    paidAt: payment.paidAt,
+    createdAt: payment.createdAt,
+    updatedAt: payment.updatedAt,
+  };
 }

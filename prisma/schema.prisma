@@ -56,6 +56,7 @@ model User {
   sessions      Session[]
   savedReports  SavedReport[]
   invoices      Invoice[]
+  reportPayments ReportPayment[]
 
   @@map("users")
 }
@@ -118,6 +119,7 @@ model Invoice {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportPayment ReportPayment?
 
   @@index([userId])
   @@index([provider, providerId])
@@ -126,6 +128,8 @@ model Invoice {
 
 model ReportPayment {
   id              String    @id @default(cuid())
+  userId          String?
+  invoiceId       String?   @unique
   molliePaymentId String    @unique
   checkoutToken   String    @unique
   reportType      String
@@ -140,7 +144,10 @@ model ReportPayment {
   paidAt          DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([reportType, reportId])
   @@index([status])
   @@map("report_payments")

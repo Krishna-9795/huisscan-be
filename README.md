@@ -180,6 +180,7 @@ Invoices:
 
 Payments:
 
+- `GET /payments` - current user's payment history
 - `POST /payments/mollie/create`
 - `GET /payments/mollie/return`
 - `POST /payments/mollie/webhook`

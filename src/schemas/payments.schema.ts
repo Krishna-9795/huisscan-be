@@ -11,6 +11,8 @@ export const createMolliePaymentSchema = z.object({
   reportId: z.string().min(1, "reportId is required"),
   address: z.string().trim().optional(),
   returnTo: z.string().trim().optional(),
+  authToken: z.string().trim().optional(),
+  sessionToken: z.string().trim().optional(),
 });
 
 export const mollieReturnQuerySchema = z.object({

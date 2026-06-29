@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 
 type CreateReportPaymentData = {
+  userId?: string;
   molliePaymentId: string;
   checkoutToken: string;
   reportType: string;
@@ -17,6 +18,7 @@ type CreateReportPaymentData = {
 type UpdateReportPaymentData = {
   status?: string;
   checkoutUrl?: string;
+  invoiceId?: string;
   paidAt?: Date | null;
   metadata?: Prisma.InputJsonValue;
 };
@@ -39,6 +41,19 @@ export class ReportPaymentsRepository {
   findByCheckoutToken(checkoutToken: string) {
     return this.prisma.reportPayment.findUnique({
       where: { checkoutToken },
+    });
+  }
+
+  findAllByUserId(userId: string) {
+    return this.prisma.reportPayment.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  findAll() {
+    return this.prisma.reportPayment.findMany({
+      orderBy: { createdAt: "desc" },
     });
   }
 

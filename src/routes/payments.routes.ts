@@ -2,9 +2,11 @@ import { FastifyInstance } from "fastify";
 
 import {
   createMolliePayment,
+  getPayments,
   handleMollieReturn,
   handleMollieWebhook,
 } from "../controllers/payments.controller";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 export default async function paymentsRoutes(app: FastifyInstance) {
   app.addContentTypeParser(
@@ -30,6 +32,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     },
   );
 
+  app.get("/", { preHandler: authMiddleware }, getPayments);
   app.post("/mollie/create", createMolliePayment);
   app.get("/mollie/return", handleMollieReturn);
   app.post("/mollie/webhook", handleMollieWebhook);

@@ -1,6 +1,9 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 
+import { getBearerToken } from "../helpers/jwt";
+import { successResponse } from "../helpers/response";
+import { SessionsRepository } from "../repositories/sessions.repository";
 import {
   createMolliePaymentSchema,
   mollieReturnQuerySchema,
@@ -45,6 +48,7 @@ export async function createMolliePayment(
   }
 
   const body = parsedBody.data;
+  const userId = await resolvePaymentUserId(request, body);
   const reportPaymentsService = new ReportPaymentsService(request.server.prisma);
 
   try {
@@ -53,11 +57,14 @@ export async function createMolliePayment(
         reportType: body.reportType,
         reportId: body.reportId,
         address: body.address ?? null,
+        userId: userId ?? null,
       },
       "Mollie checkout creation starting",
     );
 
-    const checkout = await reportPaymentsService.createMollieCheckout(body);
+    const checkout = await reportPaymentsService.createMollieCheckout(body, {
+      userId,
+    });
 
     if (wantsJson(request)) {
       return reply.send({
@@ -99,6 +106,16 @@ export async function createMolliePayment(
 
     throw error;
   }
+}
+
+export async function getPayments(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const reportPaymentsService = new ReportPaymentsService(request.server.prisma);
+  const payments = await reportPaymentsService.getAllForUser(request.user);
+
+  return reply.send(successResponse(payments));
 }
 
 export async function handleMollieReturn(
@@ -163,4 +180,42 @@ function getFormValue(value: unknown) {
   }
 
   return value;
+}
+
+async function resolvePaymentUserId(
+  request: FastifyRequest,
+  body: { authToken?: string; sessionToken?: string },
+) {
+  const token =
+    getBearerToken(request.headers.authorization) ||
+    normalizeToken(body.authToken) ||
+    normalizeToken(body.sessionToken);
+
+  if (!token) {
+    return undefined;
+  }
+
+  try {
+    const payload = request.server.jwt.verify<{
+      userId: string;
+    }>(token);
+    const sessionsRepository = new SessionsRepository(request.server.prisma);
+    const session = await sessionsRepository.findByToken(token);
+
+    if (!session || session.expiresAt < new Date()) {
+      return undefined;
+    }
+
+    return payload.userId;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeToken(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  return value.startsWith("Bearer ") ? value.slice("Bearer ".length) : value;
 }
