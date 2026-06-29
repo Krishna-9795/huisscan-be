@@ -1,6 +1,6 @@
 -- AlterTable
-ALTER TABLE "report_payments" ADD COLUMN "userId" TEXT;
-ALTER TABLE "report_payments" ADD COLUMN "invoiceId" TEXT;
+ALTER TABLE "report_payments" ADD COLUMN "userId" INTEGER;
+ALTER TABLE "report_payments" ADD COLUMN "invoiceId" INTEGER;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "report_payments_invoiceId_key" ON "report_payments"("invoiceId");

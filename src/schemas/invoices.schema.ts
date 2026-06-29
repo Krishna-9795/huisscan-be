@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const invoiceIdParamsSchema = z.object({
-  id: z.string().cuid(),
+  id: z.coerce.number().int().positive(),
 });
 
 export type InvoiceIdParams = z.infer<typeof invoiceIdParamsSchema>;

@@ -7,7 +7,7 @@ import {
 import { SavedReportsRepository } from "../repositories/saved-reports.repository";
 
 type CurrentUser = {
-  userId: string;
+  userId: number;
   role: UserRole;
 };
 
@@ -81,7 +81,7 @@ export class SoldHomeBenchmarkReportService {
     this.pdokAddressService = pdokAddressService;
   }
 
-  async getByReportId(reportId: string, currentUser: CurrentUser) {
+  async getByReportId(reportId: number, currentUser: CurrentUser) {
     const savedReport = await this.savedReportsRepository.findById(reportId);
 
     if (!savedReport || !canAccessUserResource(currentUser, savedReport.userId)) {
@@ -462,6 +462,6 @@ function toRadians(degrees: number) {
   return (degrees * Math.PI) / 180;
 }
 
-function canAccessUserResource(currentUser: CurrentUser, resourceUserId: string) {
+function canAccessUserResource(currentUser: CurrentUser, resourceUserId: number) {
   return currentUser.role === "ADMIN" || currentUser.userId === resourceUserId;
 }

@@ -49,7 +49,7 @@ export class UsersService {
     return toPublicUserProfile(user);
   }
 
-  async getCurrentUser(userId: string) {
+  async getCurrentUser(userId: number) {
     const user = await this.usersRepository.findById(userId);
 
     if (!user) {
@@ -59,7 +59,7 @@ export class UsersService {
     return toPublicUser(user);
   }
 
-  async updateCurrentUser(userId: string, input: UpdateUserInput) {
+  async updateCurrentUser(userId: number, input: UpdateUserInput) {
     const user = await this.usersRepository.update(userId, input);
     return toPublicUser(user);
   }
@@ -69,7 +69,7 @@ export class UsersService {
     return users.map(toPublicUser);
   }
 
-  async getUserById(id: string) {
+  async getUserById(id: number) {
     const user = await this.usersRepository.findById(id);
 
     if (!user) {

@@ -1,8 +1,8 @@
 import { Prisma } from "@prisma/client";
 
 export type PublicSavedReport = {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   propertyId: string;
   address: string;
   reportData: Prisma.JsonValue;

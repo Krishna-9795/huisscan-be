@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 export class SessionsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  create(userId: string, sessionToken: string, expiresAt: Date) {
+  create(userId: number, sessionToken: string, expiresAt: Date) {
     return this.prisma.session.create({
       data: {
         userId,

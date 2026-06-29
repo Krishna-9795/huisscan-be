@@ -1,6 +1,6 @@
 export type PublicSession = {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;

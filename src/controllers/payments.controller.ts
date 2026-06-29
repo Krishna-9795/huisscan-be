@@ -197,7 +197,7 @@ async function resolvePaymentUserId(
 
   try {
     const payload = request.server.jwt.verify<{
-      userId: string;
+      userId: number;
     }>(token);
     const sessionsRepository = new SessionsRepository(request.server.prisma);
     const session = await sessionsRepository.findByToken(token);

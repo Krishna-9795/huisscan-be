@@ -1,7 +1,7 @@
 import { Invoice, InvoiceStatus, PrismaClient } from "@prisma/client";
 
 type CreateInvoiceData = {
-  userId: string;
+  userId: number;
   number: string;
   description: string;
   amountCents: number;
@@ -14,7 +14,7 @@ type CreateInvoiceData = {
 export class InvoicesRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  findAllByUserId(userId: string) {
+  findAllByUserId(userId: number) {
     return this.prisma.invoice.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -27,7 +27,7 @@ export class InvoicesRepository {
     });
   }
 
-  findById(id: string) {
+  findById(id: number) {
     return this.prisma.invoice.findUnique({
       where: { id },
     });

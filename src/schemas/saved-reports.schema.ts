@@ -10,7 +10,7 @@ export const createSavedReportSchema = z.object({
 });
 
 export const savedReportIdParamsSchema = z.object({
-  id: z.string().cuid(),
+  id: z.coerce.number().int().positive(),
 });
 
 export type CreateSavedReportInput = z.infer<typeof createSavedReportSchema>;

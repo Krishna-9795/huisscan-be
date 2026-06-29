@@ -7,7 +7,7 @@ import {
 import { CreateSavedReportInput } from "../schemas/saved-reports.schema";
 
 type CurrentUser = {
-  userId: string;
+  userId: number;
   role: UserRole;
 };
 
@@ -18,7 +18,7 @@ export class SavedReportsService {
     this.savedReportsRepository = new SavedReportsRepository(prisma);
   }
 
-  async create(userId: string, input: CreateSavedReportInput) {
+  async create(userId: number, input: CreateSavedReportInput) {
     const savedReport = await this.savedReportsRepository.create({
       userId,
       propertyId: input.propertyId,
@@ -38,7 +38,7 @@ export class SavedReportsService {
     return savedReports.map(toPublicSavedReport);
   }
 
-  async getById(id: string, currentUser: CurrentUser) {
+  async getById(id: number, currentUser: CurrentUser) {
     const savedReport = await this.savedReportsRepository.findById(id);
 
     if (!savedReport || !canAccessUserResource(currentUser, savedReport.userId)) {
@@ -48,7 +48,7 @@ export class SavedReportsService {
     return toPublicSavedReport(savedReport);
   }
 
-  async deleteById(id: string, currentUser: CurrentUser) {
+  async deleteById(id: number, currentUser: CurrentUser) {
     const savedReport = await this.savedReportsRepository.findById(id);
 
     if (!savedReport || !canAccessUserResource(currentUser, savedReport.userId)) {
@@ -60,6 +60,6 @@ export class SavedReportsService {
   }
 }
 
-function canAccessUserResource(currentUser: CurrentUser, resourceUserId: string) {
+function canAccessUserResource(currentUser: CurrentUser, resourceUserId: number) {
   return currentUser.role === "ADMIN" || currentUser.userId === resourceUserId;
 }

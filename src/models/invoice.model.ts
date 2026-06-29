@@ -1,8 +1,8 @@
 import { InvoiceStatus } from "@prisma/client";
 
 export type PublicInvoice = {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   number: string;
   description: string;
   amountCents: number;

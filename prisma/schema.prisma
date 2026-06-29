@@ -40,7 +40,7 @@ enum BuyingStage {
 }
 
 model User {
-  id            String           @id @default(cuid())
+  id            Int              @id @default(autoincrement())
   email         String           @unique
   name          String?
   phone         String?
@@ -62,8 +62,8 @@ model User {
 }
 
 model UserPreference {
-  id              String       @id @default(cuid())
-  userId          String       @unique
+  id              Int          @id @default(autoincrement())
+  userId          Int          @unique
   budgetMin       Int?
   budgetMax       Int?
   preferredCities String[]     @default([])
@@ -78,8 +78,8 @@ model UserPreference {
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  userId       String
+  id           Int      @id @default(autoincrement())
+  userId       Int
   sessionToken String   @unique
   expiresAt    DateTime
   createdAt    DateTime @default(now())
@@ -91,8 +91,8 @@ model Session {
 }
 
 model SavedReport {
-  id         String   @id @default(cuid())
-  userId     String
+  id         Int      @id @default(autoincrement())
+  userId     Int
   propertyId String
   address    String
   reportData Json
@@ -107,8 +107,8 @@ model SavedReport {
 }
 
 model Invoice {
-  id          String        @id @default(cuid())
-  userId      String
+  id          Int           @id @default(autoincrement())
+  userId      Int
   number      String        @unique
   description String
   amountCents Int
@@ -127,9 +127,9 @@ model Invoice {
 }
 
 model ReportPayment {
-  id              String    @id @default(cuid())
-  userId          String?
-  invoiceId       String?   @unique
+  id              Int       @id @default(autoincrement())
+  userId          Int?
+  invoiceId       Int?      @unique
   molliePaymentId String    @unique
   checkoutToken   String    @unique
   reportType      String

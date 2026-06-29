@@ -46,7 +46,7 @@ export const createUserProfileSchema = z.object({
 });
 
 export const userIdParamsSchema = z.object({
-  id: z.string().cuid(),
+  id: z.coerce.number().int().positive(),
 });
 
 export const updateUserSchema = z.object({

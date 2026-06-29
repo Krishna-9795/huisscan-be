@@ -6,7 +6,7 @@ import {
 } from "../repositories/invoices.repository";
 
 type CurrentUser = {
-  userId: string;
+  userId: number;
   role: UserRole;
 };
 
@@ -26,7 +26,7 @@ export class InvoicesService {
     return invoices.map(toPublicInvoice);
   }
 
-  async getById(id: string, currentUser: CurrentUser) {
+  async getById(id: number, currentUser: CurrentUser) {
     const invoice = await this.invoicesRepository.findById(id);
 
     if (!invoice || !canAccessUserResource(currentUser, invoice.userId)) {
@@ -37,6 +37,6 @@ export class InvoicesService {
   }
 }
 
-function canAccessUserResource(currentUser: CurrentUser, resourceUserId: string) {
+function canAccessUserResource(currentUser: CurrentUser, resourceUserId: number) {
   return currentUser.role === "ADMIN" || currentUser.userId === resourceUserId;
 }

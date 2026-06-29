@@ -18,7 +18,7 @@ CREATE TYPE "BuyingStage" AS ENUM ('EXPLORING', 'SEARCHING', 'VIEWING', 'OFFER_M
 
 -- CreateTable
 CREATE TABLE "users" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT,
     "phone" TEXT,
@@ -36,8 +36,8 @@ CREATE TABLE "users" (
 
 -- CreateTable
 CREATE TABLE "user_preferences" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
     "budgetMin" INTEGER,
     "budgetMax" INTEGER,
     "preferredCities" TEXT[] DEFAULT ARRAY[]::TEXT[],
@@ -52,8 +52,8 @@ CREATE TABLE "user_preferences" (
 
 -- CreateTable
 CREATE TABLE "sessions" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
     "sessionToken" TEXT NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -64,8 +64,8 @@ CREATE TABLE "sessions" (
 
 -- CreateTable
 CREATE TABLE "saved_reports" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
     "propertyId" TEXT NOT NULL,
     "address" TEXT NOT NULL,
     "reportData" JSONB NOT NULL,
@@ -77,8 +77,8 @@ CREATE TABLE "saved_reports" (
 
 -- CreateTable
 CREATE TABLE "invoices" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
     "number" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "amountCents" INTEGER NOT NULL,
@@ -133,4 +133,3 @@ ALTER TABLE "saved_reports" ADD CONSTRAINT "saved_reports_userId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

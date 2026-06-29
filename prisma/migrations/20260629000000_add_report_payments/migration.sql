@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "report_payments" (
-    "id" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
     "molliePaymentId" TEXT NOT NULL,
     "checkoutToken" TEXT NOT NULL,
     "reportType" TEXT NOT NULL,

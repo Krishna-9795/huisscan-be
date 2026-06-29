@@ -35,13 +35,13 @@ export class UsersRepository {
     });
   }
 
-  findById(id: string) {
+  findById(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
     });
   }
 
-  findProfileById(id: string) {
+  findProfileById(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
       include: { preferences: true },
@@ -80,7 +80,7 @@ export class UsersRepository {
     });
   }
 
-  update(id: string, data: UpdateUserData) {
+  update(id: number, data: UpdateUserData) {
     return this.prisma.user.update({
       where: { id },
       data: {

@@ -3,7 +3,7 @@ import { UserRole } from "@prisma/client";
 import { PublicUser } from "./user.model";
 
 export type AuthTokenPayload = {
-  userId: string;
+  userId: number;
   email: string;
   role: UserRole;
 };

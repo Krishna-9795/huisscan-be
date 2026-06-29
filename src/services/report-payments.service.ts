@@ -33,12 +33,12 @@ type PaidReportAccessInput = {
 };
 
 type CurrentUser = {
-  userId: string;
+  userId: number;
   role: UserRole;
 };
 
 type CreateMollieCheckoutOptions = {
-  userId?: string;
+  userId?: number;
 };
 
 const REPORT_PRICES_CENTS: Record<ReportType, number> = {
@@ -303,7 +303,13 @@ export class ReportPaymentsService {
   }
 
   private async getSavedReportOwnerId(reportId: string) {
-    const savedReport = await this.savedReportsRepository.findById(reportId);
+    const savedReportId = Number(reportId);
+
+    if (!Number.isInteger(savedReportId) || savedReportId <= 0) {
+      return undefined;
+    }
+
+    const savedReport = await this.savedReportsRepository.findById(savedReportId);
     return savedReport?.userId;
   }
 }

@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient, SavedReport } from "@prisma/client";
 
 type CreateSavedReportData = {
-  userId: string;
+  userId: number;
   propertyId: string;
   address: string;
   reportData: Prisma.InputJsonValue;
@@ -26,7 +26,7 @@ export class SavedReportsRepository {
     });
   }
 
-  findAllByUserId(userId: string) {
+  findAllByUserId(userId: number) {
     return this.prisma.savedReport.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -39,13 +39,13 @@ export class SavedReportsRepository {
     });
   }
 
-  findById(id: string) {
+  findById(id: number) {
     return this.prisma.savedReport.findUnique({
       where: { id },
     });
   }
 
-  deleteById(id: string) {
+  deleteById(id: number) {
     return this.prisma.savedReport.delete({
       where: { id },
     });
