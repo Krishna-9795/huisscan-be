@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { Prisma, PrismaClient, ReportPayment } from "@prisma/client";
 
 import { env } from "../config/env";
+import { getPaymentsApiPrefix } from "../helpers/payments-api-prefix";
 import {
   CreateMolliePaymentInput,
   ReportType,
@@ -47,9 +48,11 @@ export class ReportPaymentsService {
     const checkoutToken = createCheckoutToken();
     const amountCents = REPORT_PRICES_CENTS[input.reportType];
     const baseUrl = getPublicAppUrl();
-    const webhookUrl = `${baseUrl}${env.API_PREFIX}/payments/mollie/webhook`;
+    const paymentsApiPrefix = getPaymentsApiPrefix();
+    const webhookUrl = `${baseUrl}${paymentsApiPrefix}/payments/mollie/webhook`;
     const provisionalRedirectUrl = buildMollieReturnUrl({
       baseUrl,
+      paymentsApiPrefix,
       checkoutToken,
     });
 
@@ -74,6 +77,7 @@ export class ReportPaymentsService {
 
     const redirectUrl = buildMollieReturnUrl({
       baseUrl,
+      paymentsApiPrefix,
       paymentId: molliePayment.id,
       checkoutToken,
     });
@@ -235,14 +239,16 @@ export async function hasPaidReportAccess(
 
 function buildMollieReturnUrl({
   baseUrl,
+  paymentsApiPrefix = getPaymentsApiPrefix(),
   paymentId,
   checkoutToken,
 }: {
   baseUrl: string;
+  paymentsApiPrefix?: string;
   paymentId?: string;
   checkoutToken: string;
 }) {
-  const url = new URL(`${baseUrl}${env.API_PREFIX}/payments/mollie/return`);
+  const url = new URL(`${baseUrl}${paymentsApiPrefix}/payments/mollie/return`);
 
   if (paymentId) {
     url.searchParams.set("paymentId", paymentId);

@@ -7,6 +7,8 @@ import jwtPlugin from "./plugins/jwt";
 import prismaPlugin from "./plugins/prisma";
 import sensiblePlugin from "./plugins/sensible";
 import routes from "./routes";
+import paymentsRoutes from "./routes/payments.routes";
+import { getPaymentsApiPrefix } from "./helpers/payments-api-prefix";
 
 export async function buildApp() {
   const app = Fastify({
@@ -18,6 +20,12 @@ export async function buildApp() {
   await app.register(jwtPlugin);
   await app.register(prismaPlugin);
   await app.register(routes, { prefix: env.API_PREFIX });
+
+  const paymentsApiPrefix = getPaymentsApiPrefix();
+
+  if (paymentsApiPrefix !== env.API_PREFIX) {
+    await app.register(paymentsRoutes, { prefix: `${paymentsApiPrefix}/payments` });
+  }
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {

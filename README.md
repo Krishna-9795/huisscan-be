@@ -184,6 +184,9 @@ Payments:
 - `GET /payments/mollie/return`
 - `POST /payments/mollie/webhook`
 
+When production keeps the legacy `API_PREFIX="/api/v1"`, Mollie payment
+routes are also exposed at `/api/payments/...` for the frontend checkout flow.
+
 Protected routes require:
 
 ```txt
