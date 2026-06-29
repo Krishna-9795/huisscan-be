@@ -5,6 +5,7 @@ import authRoutes from "./auth.routes";
 import usersRoutes from "./users.routes";
 import savedReportsRoutes from "./saved-reports.routes";
 import invoicesRoutes from "./invoices.routes";
+import soldHomeBenchmarkReportRoutes from "./sold-home-benchmark-report.routes";
 
 export default async function routes(app: FastifyInstance) {
   await app.register(healthRoutes);
@@ -12,4 +13,5 @@ export default async function routes(app: FastifyInstance) {
   await app.register(usersRoutes, { prefix: "/users" });
   await app.register(savedReportsRoutes, { prefix: "/saved-reports" });
   await app.register(invoicesRoutes, { prefix: "/invoices" });
+  await app.register(soldHomeBenchmarkReportRoutes);
 }
