@@ -57,6 +57,7 @@ model User {
   savedReports  SavedReport[]
   invoices      Invoice[]
   reportPayments ReportPayment[]
+  addressSearches UserAddressSearch[]
 
   @@map("users")
 }
@@ -120,6 +121,7 @@ model Invoice {
   updatedAt   DateTime      @updatedAt
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   reportPayment ReportPayment?
+  addressSearches UserAddressSearch[]
 
   @@index([userId])
   @@index([provider, providerId])
@@ -146,9 +148,35 @@ model ReportPayment {
   updatedAt       DateTime  @updatedAt
   user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  addressSearches UserAddressSearch[]
 
   @@index([userId])
   @@index([reportType, reportId])
   @@index([status])
   @@map("report_payments")
+}
+
+model UserAddressSearch {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  reportType      String
+  reportId        String?
+  address         String
+  addressKey      String
+  lastPaymentId   Int?
+  lastMolliePaymentId String?
+  invoiceId       Int?
+  paymentStatus   String    @default("unpaid")
+  paidAt          DateTime?
+  freeAccessUntil DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastPayment     ReportPayment? @relation(fields: [lastPaymentId], references: [id], onDelete: SetNull)
+  invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, reportType, addressKey])
+  @@index([userId])
+  @@index([userId, freeAccessUntil])
+  @@map("user_address_searches")
 }

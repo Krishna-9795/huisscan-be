@@ -18,6 +18,7 @@ import { MollieClientService, MolliePayment } from "./mollie-client.service";
 import { InvoicesRepository } from "../repositories/invoices.repository";
 import { ReportPaymentsRepository } from "../repositories/report-payments.repository";
 import { SavedReportsRepository } from "../repositories/saved-reports.repository";
+import { UserAddressSearchesService } from "./user-address-searches.service";
 
 type CreateCheckoutResult = {
   checkoutUrl: string;
@@ -30,6 +31,12 @@ type PaidReportAccessInput = {
   reportId: string;
   paymentId: string;
   checkoutToken: string;
+};
+
+type AddressReuseAccessInput = {
+  userId: number;
+  reportType: ReportType;
+  address: string;
 };
 
 type CurrentUser = {
@@ -51,6 +58,7 @@ export class ReportPaymentsService {
   private readonly invoicesRepository: InvoicesRepository;
   private readonly reportPaymentsRepository: ReportPaymentsRepository;
   private readonly savedReportsRepository: SavedReportsRepository;
+  private readonly userAddressSearchesService: UserAddressSearchesService;
   private readonly mollieClient: MollieClientService;
 
   constructor(
@@ -60,6 +68,7 @@ export class ReportPaymentsService {
     this.invoicesRepository = new InvoicesRepository(prisma);
     this.reportPaymentsRepository = new ReportPaymentsRepository(prisma);
     this.savedReportsRepository = new SavedReportsRepository(prisma);
+    this.userAddressSearchesService = new UserAddressSearchesService(prisma);
     this.mollieClient = mollieClient;
   }
 
@@ -125,7 +134,7 @@ export class ReportPaymentsService {
       throw new Error("Mollie did not return a checkout URL");
     }
 
-    await this.reportPaymentsRepository.create({
+    const reportPayment = await this.reportPaymentsRepository.create({
       userId,
       molliePaymentId: molliePayment.id,
       checkoutToken,
@@ -142,6 +151,20 @@ export class ReportPaymentsService {
         molliePaymentId: molliePayment.id,
       }),
     });
+
+    if (userId && input.address) {
+      await this.userAddressSearchesService.recordSearch({
+        userId,
+        reportType: input.reportType,
+        reportId: input.reportId,
+        address: input.address,
+        paymentStatus: normalizeMollieStatus(
+          updatedPayment.status || molliePayment.status,
+        ),
+        lastPaymentId: reportPayment.id,
+        lastMolliePaymentId: reportPayment.molliePaymentId,
+      });
+    }
 
     return {
       checkoutUrl,
@@ -231,6 +254,11 @@ export class ReportPaymentsService {
     return syncedPayment?.status === "paid";
   }
 
+  async hasAddressReuseAccess(input: AddressReuseAccessInput) {
+    const access = await this.userAddressSearchesService.checkAccess(input);
+    return access.hasAccess;
+  }
+
   async getAllForUser(currentUser: CurrentUser) {
     const payments =
       currentUser.role === "ADMIN"
@@ -255,16 +283,31 @@ export class ReportPaymentsService {
       status === "paid"
         ? await this.ensureInvoiceForPayment(storedPayment)
         : storedPayment.invoiceId ?? undefined;
+    const paidAt =
+      status === "paid"
+        ? parseMollieDate(molliePayment.paidAt) ?? new Date()
+        : null;
+
+    if (storedPayment.userId && storedPayment.address) {
+      await this.userAddressSearchesService.recordSearch({
+        userId: storedPayment.userId,
+        reportType: storedPayment.reportType as ReportType,
+        reportId: storedPayment.reportId,
+        address: storedPayment.address,
+        paymentStatus: status,
+        lastPaymentId: storedPayment.id,
+        lastMolliePaymentId: storedPayment.molliePaymentId,
+        invoiceId,
+        paidAt: paidAt ?? undefined,
+      });
+    }
 
     return this.reportPaymentsRepository.updateByMolliePaymentId(
       molliePayment.id,
       {
         status,
         invoiceId,
-        paidAt:
-          status === "paid"
-            ? parseMollieDate(molliePayment.paidAt) ?? new Date()
-            : null,
+        paidAt,
         metadata: toJsonValue(molliePayment.metadata ?? {}),
       },
     );

@@ -185,6 +185,13 @@ Payments:
 - `GET /payments/mollie/return`
 - `POST /payments/mollie/webhook`
 
+Address search access:
+
+- `GET /address-searches` - current user's tracked address searches
+- `GET /address-searches/access?reportType=property-report&address=...` -
+  returns whether the same paid address can be reused without payment inside
+  the 24-hour access window
+
 When production keeps the legacy `API_PREFIX="/api/v1"`, Mollie payment
 routes are also exposed at `/api/payments/...` for the frontend checkout flow.
 
