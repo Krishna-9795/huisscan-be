@@ -55,13 +55,19 @@ Set `.env` values:
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public"
 JWT_SECRET="change-me"
 PORT=4000
-API_PREFIX=""
+API_PREFIX="/api/v1"
 NODE_ENV=development
 FRONTEND_URL="http://localhost:3000"
 PUBLIC_APP_URL="http://localhost:3000"
+# Backend origin only. Do not include API_PREFIX here.
+PUBLIC_API_URL="https://your-public-backend-url.example.com"
 MOLLIE_TEST_API_KEY="test_xxx"
 # MOLLIE_API_KEY="live_xxx"
 ```
+
+For local development, `PUBLIC_API_URL="http://localhost:4000"` is enough for
+Mollie return redirects. Webhooks are only sent to Mollie when the backend URL is
+public HTTPS, because Mollie cannot reach `localhost` from its servers.
 
 Generate Prisma client:
 
@@ -81,7 +87,7 @@ Start the dev server:
 npm run dev
 ```
 
-The API runs at `http://localhost:4000`.
+The API runs at `http://localhost:4000/api/v1`.
 
 For same-server production deployment behind an existing frontend, see
 `deploy/same-server.md`. In that setup, use `API_PREFIX="/api/v1"` and proxy
@@ -147,53 +153,50 @@ npm run db:deploy
 
 Health:
 
-- `GET /health`
+- `GET /api/v1/health`
 
-When `API_PREFIX="/api/v1"` is set in production, the same route becomes
-`GET /api/v1/health`.
+First-party API routes are mounted under `API_PREFIX`, which defaults to
+`/api/v1`.
 
 Auth:
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/logout`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
 
 Users:
 
-- `POST /users`
-- `GET /users/me`
-- `PATCH /users/me`
-- `GET /users` - admin only
-- `GET /users/:id` - admin only
+- `POST /api/v1/users`
+- `GET /api/v1/users/me`
+- `PATCH /api/v1/users/me`
+- `GET /api/v1/users` - admin only
+- `GET /api/v1/users/:id` - admin only
 
 Saved reports:
 
-- `POST /saved-reports`
-- `GET /saved-reports`
-- `GET /saved-reports/:id`
-- `DELETE /saved-reports/:id`
+- `POST /api/v1/saved-reports`
+- `GET /api/v1/saved-reports`
+- `GET /api/v1/saved-reports/:id`
+- `DELETE /api/v1/saved-reports/:id`
 
 Invoices:
 
-- `GET /invoices`
-- `GET /invoices/:id`
+- `GET /api/v1/invoices?user_id=<userId>`
+- `GET /api/v1/invoices/:id?user_id=<userId>`
 
 Payments:
 
-- `GET /payments` - current user's payment history
-- `POST /payments/mollie/create`
-- `GET /payments/mollie/return`
-- `POST /payments/mollie/webhook`
+- `GET /api/v1/payments` - current user's payment history
+- `POST /api/v1/payments/mollie/create`
+- `GET /api/v1/payments/mollie/return`
+- `POST /api/v1/payments/mollie/webhook`
 
 Address search access:
 
-- `GET /address-searches` - current user's tracked address searches
-- `GET /address-searches/access?reportType=property-report&address=...` -
+- `GET /api/v1/address-searches` - current user's tracked address searches
+- `GET /api/v1/address-searches/access?reportType=property-report&address=...` -
   returns whether the same paid address can be reused without payment inside
   the 24-hour access window
-
-When production keeps the legacy `API_PREFIX="/api/v1"`, Mollie payment
-routes are also exposed at `/api/payments/...` for the frontend checkout flow.
 
 Protected routes require:
 
@@ -206,13 +209,13 @@ Authorization: Bearer YOUR_JWT_TOKEN
 Health:
 
 ```bash
-curl http://localhost:4000/health
+curl http://localhost:4000/api/v1/health
 ```
 
 Register:
 
 ```bash
-curl -X POST http://localhost:4000/auth/register \
+curl -X POST http://localhost:4000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "owner@example.com",
@@ -224,7 +227,7 @@ curl -X POST http://localhost:4000/auth/register \
 Login:
 
 ```bash
-curl -X POST http://localhost:4000/auth/login \
+curl -X POST http://localhost:4000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "owner@example.com",
@@ -235,7 +238,7 @@ curl -X POST http://localhost:4000/auth/login \
 Create a user profile:
 
 ```bash
-curl -X POST http://localhost:4000/users \
+curl -X POST http://localhost:4000/api/v1/users \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Vinod",
@@ -258,14 +261,14 @@ curl -X POST http://localhost:4000/users \
 Get current user:
 
 ```bash
-curl http://localhost:4000/users/me \
+curl http://localhost:4000/api/v1/users/me \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 Update current user:
 
 ```bash
-curl -X PATCH http://localhost:4000/users/me \
+curl -X PATCH http://localhost:4000/api/v1/users/me \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -277,7 +280,7 @@ curl -X PATCH http://localhost:4000/users/me \
 Create a saved report:
 
 ```bash
-curl -X POST http://localhost:4000/saved-reports \
+curl -X POST http://localhost:4000/api/v1/saved-reports \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -293,21 +296,21 @@ curl -X POST http://localhost:4000/saved-reports \
 List saved reports:
 
 ```bash
-curl http://localhost:4000/saved-reports \
+curl http://localhost:4000/api/v1/saved-reports \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 List invoices:
 
 ```bash
-curl http://localhost:4000/invoices \
+curl http://localhost:4000/api/v1/invoices?user_id=1 \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 Logout:
 
 ```bash
-curl -X POST http://localhost:4000/auth/logout \
+curl -X POST http://localhost:4000/api/v1/auth/logout \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 

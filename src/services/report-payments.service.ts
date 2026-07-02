@@ -9,7 +9,6 @@ import {
 } from "@prisma/client";
 
 import { env } from "../config/env";
-import { getPaymentsApiPrefix } from "../helpers/payments-api-prefix";
 import {
   CreateMolliePaymentInput,
   ReportType,
@@ -80,12 +79,10 @@ export class ReportPaymentsService {
     const amountCents = REPORT_PRICES_CENTS[input.reportType];
     const userId =
       options.userId ?? (await this.getSavedReportOwnerId(input.reportId));
-    const baseUrl = getPublicAppUrl();
-    const paymentsApiPrefix = getPaymentsApiPrefix();
-    const webhookUrl = `${baseUrl}${paymentsApiPrefix}/payments/mollie/webhook`;
+    const backendUrl = getPublicBackendUrl();
+    const webhookUrl = buildPublicWebhookUrl(backendUrl);
     const provisionalRedirectUrl = buildMollieReturnUrl({
-      baseUrl,
-      paymentsApiPrefix,
+      backendUrl,
       checkoutToken,
     });
 
@@ -105,13 +102,12 @@ export class ReportPaymentsService {
       },
       description: getPaymentDescription(input.reportType, input.reportId),
       redirectUrl: provisionalRedirectUrl,
-      webhookUrl,
+      ...(webhookUrl ? { webhookUrl } : {}),
       metadata,
     });
 
     const redirectUrl = buildMollieReturnUrl({
-      baseUrl,
-      paymentsApiPrefix,
+      backendUrl,
       paymentId: molliePayment.id,
       checkoutToken,
     });
@@ -119,7 +115,7 @@ export class ReportPaymentsService {
       molliePayment.id,
       {
         redirectUrl,
-        webhookUrl,
+        ...(webhookUrl ? { webhookUrl } : {}),
         metadata: {
           ...metadata,
           molliePaymentId: molliePayment.id,
@@ -208,6 +204,7 @@ export class ReportPaymentsService {
         redirectUrl: buildFallbackReportUrl({
           reportType: storedPayment.reportType as ReportType,
           reportId: storedPayment.reportId,
+          returnTo: storedPayment.returnTo ?? undefined,
           paymentState: "failed",
           paymentId: storedPayment.molliePaymentId,
           checkoutToken: storedPayment.checkoutToken,
@@ -225,6 +222,7 @@ export class ReportPaymentsService {
       redirectUrl: buildFallbackReportUrl({
         reportType: syncedPayment.reportType as ReportType,
         reportId: syncedPayment.reportId,
+        returnTo: syncedPayment.returnTo ?? undefined,
         paymentState: getFailureState(syncedPayment.status),
         paymentId: syncedPayment.molliePaymentId,
         checkoutToken: syncedPayment.checkoutToken,
@@ -322,16 +320,7 @@ export class ReportPaymentsService {
       return payment.invoiceId;
     }
 
-    const existingInvoice = await this.invoicesRepository.findByProviderPayment(
-      "mollie",
-      payment.molliePaymentId,
-    );
-
-    if (existingInvoice) {
-      return existingInvoice.id;
-    }
-
-    const invoice = await this.invoicesRepository.create({
+    const invoice = await this.invoicesRepository.createOnceByProviderPayment({
       userId: payment.userId,
       number: createInvoiceNumber(payment.molliePaymentId),
       description: getInvoiceDescription(payment),
@@ -365,17 +354,15 @@ export async function hasPaidReportAccess(
 }
 
 function buildMollieReturnUrl({
-  baseUrl,
-  paymentsApiPrefix = getPaymentsApiPrefix(),
+  backendUrl,
   paymentId,
   checkoutToken,
 }: {
-  baseUrl: string;
-  paymentsApiPrefix?: string;
+  backendUrl: string;
   paymentId?: string;
   checkoutToken: string;
 }) {
-  const url = new URL(`${baseUrl}${paymentsApiPrefix}/payments/mollie/return`);
+  const url = new URL(`${backendUrl}${env.API_PREFIX}/payments/mollie/return`);
 
   if (paymentId) {
     url.searchParams.set("paymentId", paymentId);
@@ -389,6 +376,7 @@ function buildPaidReportUrl(payment: ReportPayment) {
   return buildReportUrl({
     reportType: payment.reportType as ReportType,
     reportId: payment.reportId,
+    returnTo: payment.returnTo ?? undefined,
     paymentState: "paid",
     paymentId: payment.molliePaymentId,
     checkoutToken: payment.checkoutToken,
@@ -398,12 +386,14 @@ function buildPaidReportUrl(payment: ReportPayment) {
 function buildFallbackReportUrl({
   reportType,
   reportId,
+  returnTo,
   paymentState,
   paymentId,
   checkoutToken,
 }: {
   reportType: ReportType;
   reportId: string;
+  returnTo?: string;
   paymentState: "cancelled" | "failed";
   paymentId?: string;
   checkoutToken?: string;
@@ -411,6 +401,7 @@ function buildFallbackReportUrl({
   return buildReportUrl({
     reportType,
     reportId,
+    returnTo,
     paymentState,
     paymentId,
     checkoutToken,
@@ -420,19 +411,22 @@ function buildFallbackReportUrl({
 function buildReportUrl({
   reportType,
   reportId,
+  returnTo,
   paymentState,
   paymentId,
   checkoutToken,
 }: {
   reportType: ReportType;
   reportId: string;
+  returnTo?: string;
   paymentState: "paid" | "cancelled" | "failed";
   paymentId?: string;
   checkoutToken?: string;
 }) {
-  const baseUrl = getPublicAppUrl();
-  const path = getReportPath(reportType, reportId);
-  const url = new URL(path, baseUrl);
+  const url =
+    returnTo && isSafeReturnTo(returnTo)
+      ? new URL(returnTo, getFrontendUrl())
+      : new URL(getReportPath(reportType, reportId), getFrontendUrl());
 
   url.searchParams.set("payment", paymentState);
 
@@ -445,6 +439,17 @@ function buildReportUrl({
   }
 
   return url.toString();
+}
+
+function isSafeReturnTo(returnTo: string) {
+  try {
+    const frontendUrl = new URL(getFrontendUrl());
+    const returnUrl = new URL(returnTo, frontendUrl);
+
+    return returnUrl.origin === frontendUrl.origin;
+  } catch {
+    return false;
+  }
 }
 
 function getReportPath(reportType: ReportType, reportId: string) {
@@ -491,7 +496,44 @@ function createCheckoutToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-function getPublicAppUrl() {
+function getPublicBackendUrl() {
+  if (!env.PUBLIC_API_URL) {
+    throw new Error("PUBLIC_API_URL is required to create Mollie payments");
+  }
+
+  return removeApiPrefixFromBaseUrl(env.PUBLIC_API_URL).replace(/\/$/, "");
+}
+
+function buildPublicWebhookUrl(backendUrl: string) {
+  const url = new URL(`${backendUrl}${env.API_PREFIX}/payments/mollie/webhook`);
+
+  if (!isPublicHttpsUrl(url)) {
+    return undefined;
+  }
+
+  return url.toString();
+}
+
+function isPublicHttpsUrl(url: URL) {
+  if (url.protocol !== "https:") {
+    return false;
+  }
+
+  return !["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+}
+
+function removeApiPrefixFromBaseUrl(value: string) {
+  const url = new URL(value);
+  const apiPrefix = env.API_PREFIX.replace(/\/$/, "");
+
+  if (apiPrefix && url.pathname === apiPrefix) {
+    url.pathname = "/";
+  }
+
+  return url.toString().replace(/\/$/, "");
+}
+
+function getFrontendUrl() {
   return (env.PUBLIC_APP_URL || env.FRONTEND_URL).replace(/\/$/, "");
 }
 

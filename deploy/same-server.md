@@ -52,6 +52,8 @@ PORT=4000
 API_PREFIX="/api/v1"
 NODE_ENV=production
 FRONTEND_URL="https://your-domain.com"
+PUBLIC_APP_URL="https://your-domain.com"
+PUBLIC_API_URL="https://your-domain.com"
 ```
 
 Generate a strong JWT secret:
@@ -130,7 +132,7 @@ VITE_BASE_URL=https://your-domain.com
 Final login URL=https://your-domain.com/api/v1/auth/login
 ```
 
-If you later change the frontend to call `/api/auth/login` instead, switch the backend to `API_PREFIX="/api"` and update smoke tests accordingly.
+Keep all first-party backend calls under `/api/v1`.
 
 ## 8. Smoke test
 

@@ -49,6 +49,14 @@ export async function createMolliePayment(
 
   const body = parsedBody.data;
   const userId = await resolvePaymentUserId(request, body);
+
+  if (!userId) {
+    return reply.status(401).send({
+      success: false,
+      message: "A valid authToken or bearer token is required",
+    });
+  }
+
   const reportPaymentsService = new ReportPaymentsService(request.server.prisma);
 
   try {
@@ -217,5 +225,7 @@ function normalizeToken(value: string | undefined) {
     return undefined;
   }
 
-  return value.startsWith("Bearer ") ? value.slice("Bearer ".length) : value;
+  return value.toLowerCase().startsWith("bearer ")
+    ? value.slice("Bearer ".length).trim()
+    : value.trim();
 }

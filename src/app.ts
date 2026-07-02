@@ -7,8 +7,6 @@ import jwtPlugin from "./plugins/jwt";
 import prismaPlugin from "./plugins/prisma";
 import sensiblePlugin from "./plugins/sensible";
 import routes from "./routes";
-import paymentsRoutes from "./routes/payments.routes";
-import { getPaymentsApiPrefix } from "./helpers/payments-api-prefix";
 
 export async function buildApp() {
   const app = Fastify({
@@ -19,13 +17,14 @@ export async function buildApp() {
   await app.register(sensiblePlugin);
   await app.register(jwtPlugin);
   await app.register(prismaPlugin);
+  app.addHook("onRequest", async (request, reply) => {
+    const normalizedUrl = normalizeDuplicateApiPrefix(request.url);
+
+    if (normalizedUrl) {
+      return reply.redirect(normalizedUrl, 308);
+    }
+  });
   await app.register(routes, { prefix: env.API_PREFIX });
-
-  const paymentsApiPrefix = getPaymentsApiPrefix();
-
-  if (paymentsApiPrefix !== env.API_PREFIX) {
-    await app.register(paymentsRoutes, { prefix: `${paymentsApiPrefix}/payments` });
-  }
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
@@ -70,4 +69,20 @@ function getStatusCode(error: unknown) {
   }
 
   return 500;
+}
+
+function normalizeDuplicateApiPrefix(url: string) {
+  const apiPrefix = env.API_PREFIX.replace(/\/$/, "");
+
+  if (!apiPrefix) {
+    return undefined;
+  }
+
+  const duplicatePrefix = `${apiPrefix}${apiPrefix}/`;
+
+  if (!url.startsWith(duplicatePrefix)) {
+    return undefined;
+  }
+
+  return `${apiPrefix}/${url.slice(duplicatePrefix.length)}`;
 }

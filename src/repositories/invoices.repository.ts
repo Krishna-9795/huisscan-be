@@ -1,4 +1,4 @@
-import { Invoice, InvoiceStatus, PrismaClient } from "@prisma/client";
+import { Invoice, InvoiceStatus, Prisma, PrismaClient } from "@prisma/client";
 
 type CreateInvoiceData = {
   userId: number;
@@ -40,6 +40,37 @@ export class InvoicesRepository {
         providerId,
       },
     });
+  }
+
+  async createOnceByProviderPayment(data: CreateInvoiceData) {
+    const existingInvoice = await this.findByProviderPayment(
+      data.provider,
+      data.providerId,
+    );
+
+    if (existingInvoice) {
+      return existingInvoice;
+    }
+
+    try {
+      return await this.create(data);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const invoice = await this.findByProviderPayment(
+          data.provider,
+          data.providerId,
+        );
+
+        if (invoice) {
+          return invoice;
+        }
+      }
+
+      throw error;
+    }
   }
 
   create(data: CreateInvoiceData) {

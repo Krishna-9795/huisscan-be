@@ -24,7 +24,7 @@ type CreateMolliePaymentInput = {
   amount: MollieAmount;
   description: string;
   redirectUrl: string;
-  webhookUrl: string;
+  webhookUrl?: string;
   metadata: Record<string, unknown>;
 };
 

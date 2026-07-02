@@ -124,7 +124,7 @@ model Invoice {
   addressSearches UserAddressSearch[]
 
   @@index([userId])
-  @@index([provider, providerId])
+  @@unique([provider, providerId])
   @@map("invoices")
 }
 
