@@ -52,6 +52,7 @@ const REPORT_PRICES_CENTS: Record<ReportType, number> = {
   "last-sale-report": 999,
   "sold-home-benchmark-report": 999,
 };
+const PAID_REPORT_ACCESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export class ReportPaymentsService {
   private readonly invoicesRepository: InvoicesRepository;
@@ -249,7 +250,12 @@ export class ReportPaymentsService {
     }
 
     const syncedPayment = await this.syncPaymentStatusById(paymentId);
-    return syncedPayment?.status === "paid";
+    return (
+      syncedPayment?.status === "paid" &&
+      isWithinPaidAccessWindow(
+        syncedPayment.paidAt ?? syncedPayment.updatedAt ?? syncedPayment.createdAt,
+      )
+    );
   }
 
   async hasAddressReuseAccess(input: AddressReuseAccessInput) {
@@ -544,6 +550,19 @@ function parseMollieDate(value: string | undefined) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isWithinPaidAccessWindow(value: Date | string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  const paidAt = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(paidAt.getTime())) {
+    return false;
+  }
+
+  return paidAt.getTime() + PAID_REPORT_ACCESS_WINDOW_MS > Date.now();
 }
 
 function toJsonValue(value: unknown) {

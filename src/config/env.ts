@@ -2,6 +2,17 @@ import "dotenv/config";
 
 import { z } from "zod";
 
+const booleanFromEnv = z.preprocess((value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return value;
+
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off", ""].includes(normalized)) return false;
+
+  return value;
+}, z.boolean());
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -19,6 +30,12 @@ const envSchema = z
     FRONTEND_URL: z.string().url().default("http://localhost:3000"),
     PUBLIC_APP_URL: z.string().url().optional(),
     PUBLIC_API_URL: z.string().url().optional(),
+    KADASTER_DASHBOARD_CACHE_DIR: z.string().min(1).optional(),
+    KADASTER_LIVE_CALLS_ENABLED: booleanFromEnv.default(false),
+    KADASTER_ALLOWED_ADDRESS_MODE: z.enum(["one", "list", "all"]).default("one"),
+    KADASTER_ALLOWED_ADDRESSES: z
+      .string()
+      .default("Muiderbos 1, 2134 SM, Hoofddorp"),
     MOLLIE_API_KEY: z.string().min(1).optional(),
     MOLLIE_TEST_API_KEY: z.string().min(1).optional(),
   })

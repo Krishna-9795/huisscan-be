@@ -118,6 +118,7 @@ export function toPublicUserProfile(user: UserWithPreferences) {
     phone: user.phone,
     city: user.city,
     avatarColor: user.avatarColor,
+    role: user.role,
     plan: user.plan,
     preferences: {
       budgetMin: user.preferences?.budgetMin ?? null,

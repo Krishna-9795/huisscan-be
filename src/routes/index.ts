@@ -8,6 +8,7 @@ import invoicesRoutes from "./invoices.routes";
 import soldHomeBenchmarkReportRoutes from "./sold-home-benchmark-report.routes";
 import paymentsRoutes from "./payments.routes";
 import userAddressSearchesRoutes from "./user-address-searches.routes";
+import kadasterDashboardRoutes from "./kadaster-dashboard.routes";
 
 export default async function routes(app: FastifyInstance) {
   await app.register(healthRoutes);
@@ -16,6 +17,7 @@ export default async function routes(app: FastifyInstance) {
   await app.register(savedReportsRoutes, { prefix: "/saved-reports" });
   await app.register(invoicesRoutes, { prefix: "/invoices" });
   await app.register(userAddressSearchesRoutes, { prefix: "/address-searches" });
+  await app.register(kadasterDashboardRoutes, { prefix: "/kadaster-dashboard" });
   await app.register(soldHomeBenchmarkReportRoutes);
   await app.register(paymentsRoutes, { prefix: "/payments" });
 }
