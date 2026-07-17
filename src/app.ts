@@ -8,6 +8,7 @@ import multipartPlugin from "./plugins/multipart";
 import prismaPlugin from "./plugins/prisma";
 import sensiblePlugin from "./plugins/sensible";
 import routes from "./routes";
+import kadasterDashboardRoutes from "./routes/kadaster-dashboard.routes";
 import paymentsRoutes from "./routes/payments.routes";
 
 export async function buildApp() {
@@ -64,6 +65,7 @@ async function registerLegacyApiAliases(app: FastifyInstance) {
   }
 
   await app.register(paymentsRoutes, { prefix: "/api/payments" });
+  await app.register(kadasterDashboardRoutes, { prefix: "/api/kadaster-dashboard" });
 }
 
 function requestLogError(app: FastifyInstance, error: Error) {
