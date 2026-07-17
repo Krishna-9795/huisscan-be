@@ -47,12 +47,14 @@ export class ReportPaymentsRepository {
   findAllByUserId(userId: number) {
     return this.prisma.reportPayment.findMany({
       where: { userId },
+      include: { artifacts: true },
       orderBy: { createdAt: "desc" },
     });
   }
 
   findAll() {
     return this.prisma.reportPayment.findMany({
+      include: { artifacts: true },
       orderBy: { createdAt: "desc" },
     });
   }

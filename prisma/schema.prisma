@@ -39,24 +39,58 @@ enum BuyingStage {
   PURCHASED
 }
 
+enum PropertyDataSource {
+  KADASTER
+  PDOK
+  EP_ONLINE
+  WOZ
+  CBS
+  INTERNAL
+  OTHER
+}
+
+enum PropertySourceCallType {
+  LIVE_PAID
+  LIVE_FREE
+  MANUAL_IMPORT
+}
+
+enum PropertySourceCallStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+enum PropertyTransactionType {
+  SALE
+  AUCTION
+}
+
+enum ValuationConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model User {
-  id            Int              @id @default(autoincrement())
-  email         String           @unique
-  name          String?
-  phone         String?
-  city          String?
-  avatarColor   String           @default("brand")
-  passwordHash  String?
-  role          UserRole         @default(USER)
-  plan          SubscriptionPlan @default(FREE)
-  emailVerified DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  preferences   UserPreference?
-  sessions      Session[]
-  savedReports  SavedReport[]
-  invoices      Invoice[]
-  reportPayments ReportPayment[]
+  id              Int                 @id @default(autoincrement())
+  email           String              @unique
+  name            String?
+  phone           String?
+  city            String?
+  avatarColor     String              @default("brand")
+  passwordHash    String?
+  role            UserRole            @default(USER)
+  plan            SubscriptionPlan    @default(FREE)
+  emailVerified   DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  preferences     UserPreference?
+  sessions        Session[]
+  savedReports    SavedReport[]
+  invoices        Invoice[]
+  reportPayments  ReportPayment[]
+  reportArtifacts UserReportArtifact[]
   addressSearches UserAddressSearch[]
 
   @@map("users")
@@ -92,14 +126,15 @@ model Session {
 }
 
 model SavedReport {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  propertyId String
-  address    String
-  reportData Json
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  propertyId   String
+  address      String
+  reportData   Json
+  pdfReportUrl String?  @map("pdf_report_url")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, propertyId])
   @@index([userId])
@@ -108,46 +143,47 @@ model SavedReport {
 }
 
 model Invoice {
-  id          Int           @id @default(autoincrement())
-  userId      Int
-  number      String        @unique
-  description String
-  amountCents Int
-  currency    String        @default("EUR")
-  status      InvoiceStatus @default(PAID)
-  provider    String?
-  providerId  String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reportPayment ReportPayment?
+  id              Int                 @id @default(autoincrement())
+  userId          Int
+  number          String              @unique
+  description     String
+  amountCents     Int
+  currency        String              @default("EUR")
+  status          InvoiceStatus       @default(PAID)
+  provider        String?
+  providerId      String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportPayment   ReportPayment?
   addressSearches UserAddressSearch[]
 
-  @@index([userId])
   @@unique([provider, providerId])
+  @@index([userId])
   @@map("invoices")
 }
 
 model ReportPayment {
-  id              Int       @id @default(autoincrement())
+  id              Int                 @id @default(autoincrement())
   userId          Int?
-  invoiceId       Int?      @unique
-  molliePaymentId String    @unique
-  checkoutToken   String    @unique
+  invoiceId       Int?                @unique
+  molliePaymentId String              @unique
+  checkoutToken   String              @unique
   reportType      String
   reportId        String
   address         String?
   amountCents     Int
-  currency        String    @default("EUR")
+  currency        String              @default("EUR")
   status          String
   checkoutUrl     String?
   returnTo        String?
   metadata        Json?
   paidAt          DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invoice         Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  artifacts       UserReportArtifact[]
   addressSearches UserAddressSearch[]
 
   @@index([userId])
@@ -156,27 +192,479 @@ model ReportPayment {
   @@map("report_payments")
 }
 
+model ReportPriceSetting {
+  id              Int      @id @default(autoincrement())
+  reportType      String   @unique @map("report_type")
+  label           String
+  amountCents     Int      @map("amount_cents")
+  currency        String   @default("EUR")
+  isActive        Boolean  @default(true) @map("is_active")
+  updatedByUserId Int?     @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("report_price_settings")
+}
+
+model FunnelEvent {
+  id            Int      @id @default(autoincrement())
+  eventName     String   @map("event_name")
+  sessionId     String   @map("session_id")
+  userId        Int?     @map("user_id")
+  reportType    String?  @map("report_type")
+  reportId      String?  @map("report_id")
+  address       String?
+  query         String?
+  suggestionId  String?  @map("suggestion_id")
+  paymentId     String?  @map("payment_id")
+  checkoutToken String?  @map("checkout_token")
+  amountCents   Int?     @map("amount_cents")
+  currency      String?
+  metadata      Json?
+  userAgent     String?  @map("user_agent")
+  referer        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([eventName])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([reportType, reportId])
+  @@index([paymentId])
+  @@index([createdAt])
+  @@map("funnel_events")
+}
+
+model UserReportArtifact {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  reportPaymentId Int      @map("report_payment_id")
+  artifactType    String   @default("pdf") @map("artifact_type")
+  storageKey      String?  @map("storage_key")
+  publicUrl       String?  @map("public_url")
+  fileName        String?  @map("file_name")
+  status          String   @default("pending")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportPayment   ReportPayment @relation(fields: [reportPaymentId], references: [id], onDelete: Cascade)
+
+  @@unique([reportPaymentId, artifactType])
+  @@index([userId])
+  @@index([reportPaymentId])
+  @@index([status])
+  @@map("user_report_artifacts")
+}
+
 model UserAddressSearch {
-  id              Int       @id @default(autoincrement())
-  userId          Int
-  reportType      String
-  reportId        String?
-  address         String
-  addressKey      String
-  lastPaymentId   Int?
+  id                  Int            @id @default(autoincrement())
+  userId              Int
+  reportType          String
+  reportId            String?
+  address             String
+  addressKey          String
+  lastPaymentId       Int?
   lastMolliePaymentId String?
-  invoiceId       Int?
-  paymentStatus   String    @default("unpaid")
-  paidAt          DateTime?
-  freeAccessUntil DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lastPayment     ReportPayment? @relation(fields: [lastPaymentId], references: [id], onDelete: SetNull)
-  invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoiceId           Int?
+  paymentStatus       String         @default("unpaid")
+  paidAt              DateTime?
+  freeAccessUntil     DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastPayment         ReportPayment? @relation(fields: [lastPaymentId], references: [id], onDelete: SetNull)
+  invoice             Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@unique([userId, reportType, addressKey])
   @@index([userId])
   @@index([userId, freeAccessUntil])
   @@map("user_address_searches")
+}
+
+model Property {
+  id                      Int                              @id @default(autoincrement())
+  addressKey              String                           @unique @map("address_key")
+  displayAddress          String                           @map("display_address")
+  street                  String?
+  houseNumber             String?                          @map("house_number")
+  houseLetter             String?                          @map("house_letter")
+  houseNumberAddition     String?                          @map("house_number_addition")
+  postcode                String?
+  city                    String?
+  municipality            String?
+  bagVboId                String?                          @unique @map("bag_vbo_id")
+  bagPandId               String?                          @map("bag_pand_id")
+  bagNummeraanduidingId   String?                          @map("bag_nummeraanduiding_id")
+  kadasterNumber          String?                          @map("kadaster_number")
+  latitude                Decimal?                         @db.Decimal(10, 7)
+  longitude               Decimal?                         @db.Decimal(10, 7)
+  createdAt               DateTime                         @default(now()) @map("created_at")
+  updatedAt               DateTime                         @updatedAt @map("updated_at")
+  currentFact             PropertyCurrentFact?
+  sourceCalls             PropertySourceCall[]
+  sourceSnapshots         PropertySourceSnapshot[]
+  factSnapshots           PropertyFactSnapshot[]
+  saleSnapshots           PropertySaleSnapshot[]
+  ownershipSnapshots      PropertyOwnershipSnapshot[]
+  ownershipRightSnapshots PropertyOwnershipRightSnapshot[]
+  energyLabelSnapshots    PropertyEnergyLabelSnapshot[]
+  wozValueSnapshots       PropertyWozValueSnapshot[]
+  valuationSnapshots      PropertyValuationSnapshot[]
+  comparableSaleSnapshots PropertyComparableSaleSnapshot[]
+
+  @@index([postcode])
+  @@index([city])
+  @@index([kadasterNumber])
+  @@map("properties")
+}
+
+model PostalCodeArea {
+  id               Int                  @id @default(autoincrement())
+  postalCode       String               @unique @map("postal_code")
+  city             String?
+  municipality     String?
+  municipalityCode String?              @map("municipality_code")
+  province         String?
+  provinceCode     String?              @map("province_code")
+  buurtCode        String?              @map("buurt_code")
+  buurtName        String?              @map("buurt_name")
+  wijkCode         String?              @map("wijk_code")
+  wijkName         String?              @map("wijk_name")
+  latitude         Decimal?             @db.Decimal(10, 7)
+  longitude        Decimal?             @db.Decimal(10, 7)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  snapshots        PostalCodeSnapshot[]
+
+  @@index([city])
+  @@index([municipalityCode])
+  @@index([buurtCode])
+  @@map("postal_code_areas")
+}
+
+model PostalCodeSnapshot {
+  id                Int                      @id @default(autoincrement())
+  postalCodeAreaId  Int                      @map("postal_code_area_id")
+  source            PropertyDataSource
+  sourceProduct     String                   @map("source_product")
+  callType          PropertySourceCallType   @map("call_type")
+  status            PropertySourceCallStatus
+  costCents         Int?                     @map("cost_cents")
+  currency          String                   @default("EUR")
+  requestedAt       DateTime                 @default(now()) @map("requested_at")
+  completedAt       DateTime?                @map("completed_at")
+  snapshotType      String                   @map("snapshot_type")
+  rawPayload        Json                     @map("raw_payload")
+  normalizedPayload Json?                    @map("normalized_payload")
+  requestHash       String?                  @map("request_hash")
+  responseHash      String?                  @map("response_hash")
+  normalizedHash    String?                  @map("normalized_hash")
+  metadata          Json?
+  fetchedAt         DateTime                 @default(now()) @map("fetched_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  postalCodeArea    PostalCodeArea           @relation(fields: [postalCodeAreaId], references: [id], onDelete: Cascade)
+
+  @@index([postalCodeAreaId, fetchedAt])
+  @@index([source, sourceProduct])
+  @@index([callType])
+  @@index([status])
+  @@index([snapshotType])
+  @@index([requestedAt])
+  @@index([responseHash])
+  @@index([normalizedHash])
+  @@map("postal_code_snapshots")
+}
+
+model PropertySourceCall {
+  id                      Int                              @id @default(autoincrement())
+  propertyId              Int                              @map("property_id")
+  source                  PropertyDataSource
+  sourceProduct           String                           @map("source_product")
+  callType                PropertySourceCallType           @map("call_type")
+  status                  PropertySourceCallStatus
+  costCents               Int?                             @map("cost_cents")
+  currency                String                           @default("EUR")
+  requestedAt             DateTime                         @default(now()) @map("requested_at")
+  completedAt             DateTime?                        @map("completed_at")
+  requestHash             String?                          @map("request_hash")
+  responseHash            String?                          @map("response_hash")
+  metadata                Json?
+  createdAt               DateTime                         @default(now()) @map("created_at")
+  updatedAt               DateTime                         @updatedAt @map("updated_at")
+  property                Property                         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceSnapshot          PropertySourceSnapshot?
+  currentFacts            PropertyCurrentFact[]            @relation("PropertyCurrentFactSourceCall")
+  factSnapshots           PropertyFactSnapshot[]
+  saleSnapshots           PropertySaleSnapshot[]
+  ownershipSnapshots      PropertyOwnershipSnapshot[]
+  ownershipRightSnapshots PropertyOwnershipRightSnapshot[]
+  energyLabelSnapshots    PropertyEnergyLabelSnapshot[]
+  wozValueSnapshots       PropertyWozValueSnapshot[]
+  valuationSnapshots      PropertyValuationSnapshot[]
+  comparableSaleSnapshots PropertyComparableSaleSnapshot[]
+
+  @@index([propertyId])
+  @@index([source, sourceProduct])
+  @@index([callType])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("property_source_calls")
+}
+
+model PropertySourceSnapshot {
+  id                Int                @id @default(autoincrement())
+  propertyId        Int                @map("property_id")
+  sourceCallId      Int                @unique @map("source_call_id")
+  source            PropertyDataSource
+  sourceProduct     String             @map("source_product")
+  rawPayload        Json               @map("raw_payload")
+  normalizedPayload Json?              @map("normalized_payload")
+  responseHash      String?            @map("response_hash")
+  normalizedHash    String?            @map("normalized_hash")
+  fetchedAt         DateTime           @default(now()) @map("fetched_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  property          Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall        PropertySourceCall @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, fetchedAt])
+  @@index([source, sourceProduct])
+  @@index([responseHash])
+  @@index([normalizedHash])
+  @@map("property_source_snapshots")
+}
+
+model PropertyCurrentFact {
+  id                  Int                  @id @default(autoincrement())
+  propertyId          Int                  @unique @map("property_id")
+  lastSourceCallId    Int?                 @map("last_source_call_id")
+  livingAreaM2        Int?                 @map("living_area_m2")
+  plotAreaM2          Int?                 @map("plot_area_m2")
+  buildYear           Int?                 @map("build_year")
+  propertyType        String?              @map("property_type")
+  usagePurpose        String?              @map("usage_purpose")
+  energyLabel         String?              @map("energy_label")
+  lastSalePriceEur    Int?                 @map("last_sale_price_eur")
+  lastSaleDate        DateTime?            @map("last_sale_date")
+  ownershipOwnerType  String?              @map("ownership_owner_type")
+  ownerShareCount     Int?                 @map("owner_share_count")
+  hasActiveMortgage   Boolean?             @map("has_active_mortgage")
+  hasLegalEncumbrance Boolean?             @map("has_legal_encumbrance")
+  kadasterNumber      String?              @map("kadaster_number")
+  estimatedValueEur   Int?                 @map("estimated_value_eur")
+  valuationConfidence ValuationConfidence? @map("valuation_confidence")
+  dataHash            String?              @map("data_hash")
+  lastRefreshedAt     DateTime?            @map("last_refreshed_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  property            Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lastSourceCall      PropertySourceCall?  @relation("PropertyCurrentFactSourceCall", fields: [lastSourceCallId], references: [id], onDelete: SetNull)
+
+  @@index([lastSourceCallId])
+  @@index([lastRefreshedAt])
+  @@map("property_current_facts")
+}
+
+model PropertyFactSnapshot {
+  id             Int                @id @default(autoincrement())
+  propertyId     Int                @map("property_id")
+  sourceCallId   Int                @map("source_call_id")
+  livingAreaM2   Int?               @map("living_area_m2")
+  plotAreaM2     Int?               @map("plot_area_m2")
+  buildYear      Int?               @map("build_year")
+  propertyType   String?            @map("property_type")
+  usagePurpose   String?            @map("usage_purpose")
+  bagVboStatus   String?            @map("bag_vbo_status")
+  bagPandStatus  String?            @map("bag_pand_status")
+  normalizedHash String             @map("normalized_hash")
+  fetchedAt      DateTime           @default(now()) @map("fetched_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  property       Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall     PropertySourceCall @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, fetchedAt])
+  @@index([sourceCallId])
+  @@index([normalizedHash])
+  @@map("property_fact_snapshots")
+}
+
+model PropertySaleSnapshot {
+  id                 Int                     @id @default(autoincrement())
+  propertyId         Int                     @map("property_id")
+  sourceCallId       Int                     @map("source_call_id")
+  saleDate           DateTime?               @map("sale_date")
+  saleYear           Int?                    @map("sale_year")
+  salePriceEur       Int?                    @map("sale_price_eur")
+  pricePerSqmEur     Int?                    @map("price_per_sqm_eur")
+  surfaceAreaM2      Int?                    @map("surface_area_m2")
+  transactionType    PropertyTransactionType @default(SALE) @map("transaction_type")
+  multipleRealEstate Boolean?                @map("multiple_real_estate")
+  currency           String                  @default("EUR")
+  normalizedHash     String                  @map("normalized_hash")
+  fetchedAt          DateTime                @default(now()) @map("fetched_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  property           Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall         PropertySourceCall      @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, fetchedAt])
+  @@index([sourceCallId])
+  @@index([saleYear])
+  @@index([normalizedHash])
+  @@map("property_sale_snapshots")
+}
+
+model PropertyOwnershipSnapshot {
+  id                  Int                              @id @default(autoincrement())
+  propertyId          Int                              @map("property_id")
+  sourceCallId        Int                              @map("source_call_id")
+  ownerType           String?                          @map("owner_type")
+  ownerShareCount     Int?                             @map("owner_share_count")
+  hasActiveMortgage   Boolean                          @default(false) @map("has_active_mortgage")
+  hasLegalEncumbrance Boolean                          @default(false) @map("has_legal_encumbrance")
+  hasAnnotations      Boolean?                         @map("has_annotations")
+  hasSeizure          Boolean?                         @map("has_seizure")
+  kadasterNumber      String?                          @map("kadaster_number")
+  section             String?
+  plotNumber          String?                          @map("plot_number")
+  normalizedHash      String                           @map("normalized_hash")
+  fetchedAt           DateTime                         @default(now()) @map("fetched_at")
+  createdAt           DateTime                         @default(now()) @map("created_at")
+  updatedAt           DateTime                         @updatedAt @map("updated_at")
+  property            Property                         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall          PropertySourceCall               @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+  rightSnapshots      PropertyOwnershipRightSnapshot[]
+
+  @@index([propertyId, fetchedAt])
+  @@index([sourceCallId])
+  @@index([normalizedHash])
+  @@map("property_ownership_snapshots")
+}
+
+model PropertyOwnershipRightSnapshot {
+  id                  Int                       @id @default(autoincrement())
+  propertyId          Int                       @map("property_id")
+  sourceCallId        Int                       @map("source_call_id")
+  ownershipSnapshotId Int                       @map("ownership_snapshot_id")
+  rightDescription    String?                   @map("right_description")
+  holderType          String?                   @map("holder_type")
+  share               String?
+  registrationDate    DateTime?                 @map("registration_date")
+  deedReference       String?                   @map("deed_reference")
+  kadasterNumber      String?                   @map("kadaster_number")
+  normalizedHash      String                    @map("normalized_hash")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  property            Property                  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall          PropertySourceCall        @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+  ownershipSnapshot   PropertyOwnershipSnapshot @relation(fields: [ownershipSnapshotId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([sourceCallId])
+  @@index([ownershipSnapshotId])
+  @@index([normalizedHash])
+  @@map("property_ownership_right_snapshots")
+}
+
+model PropertyEnergyLabelSnapshot {
+  id             Int                @id @default(autoincrement())
+  propertyId     Int                @map("property_id")
+  sourceCallId   Int                @map("source_call_id")
+  label          String?
+  energyIndex    Decimal?           @map("energy_index") @db.Decimal(10, 3)
+  issuedAt       DateTime?          @map("issued_at")
+  validUntil     DateTime?          @map("valid_until")
+  sourceBagId    String?            @map("source_bag_id")
+  normalizedHash String             @map("normalized_hash")
+  fetchedAt      DateTime           @default(now()) @map("fetched_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  property       Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall     PropertySourceCall @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, fetchedAt])
+  @@index([sourceCallId])
+  @@index([label])
+  @@index([normalizedHash])
+  @@map("property_energy_label_snapshots")
+}
+
+model PropertyWozValueSnapshot {
+  id             Int                @id @default(autoincrement())
+  propertyId     Int                @map("property_id")
+  sourceCallId   Int                @map("source_call_id")
+  valueYear      Int                @map("value_year")
+  valueEur       Int                @map("value_eur")
+  referenceDate  DateTime?          @map("reference_date")
+  normalizedHash String             @map("normalized_hash")
+  fetchedAt      DateTime           @default(now()) @map("fetched_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  property       Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall     PropertySourceCall @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, valueYear])
+  @@index([sourceCallId])
+  @@index([normalizedHash])
+  @@map("property_woz_value_snapshots")
+}
+
+model PropertyValuationSnapshot {
+  id                      Int                              @id @default(autoincrement())
+  propertyId              Int                              @map("property_id")
+  sourceCallId            Int                              @map("source_call_id")
+  estimatedValueEur       Int                              @map("estimated_value_eur")
+  valueLowEur             Int                              @map("value_low_eur")
+  valueHighEur            Int                              @map("value_high_eur")
+  confidence              ValuationConfidence
+  pricePerSqmEur          Int                              @map("price_per_sqm_eur")
+  lastSalePriceEur        Int?                             @map("last_sale_price_eur")
+  lastSaleDate            DateTime?                        @map("last_sale_date")
+  methodology             String
+  comparablesUsed         Int                              @default(0) @map("comparables_used")
+  modelVersion            String?                          @map("model_version")
+  inputHash               String?                          @map("input_hash")
+  normalizedHash          String                           @map("normalized_hash")
+  calculatedAt            DateTime                         @default(now()) @map("calculated_at")
+  createdAt               DateTime                         @default(now()) @map("created_at")
+  updatedAt               DateTime                         @updatedAt @map("updated_at")
+  property                Property                         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall              PropertySourceCall               @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+  comparableSaleSnapshots PropertyComparableSaleSnapshot[]
+
+  @@index([propertyId, calculatedAt])
+  @@index([sourceCallId])
+  @@index([normalizedHash])
+  @@map("property_valuation_snapshots")
+}
+
+model PropertyComparableSaleSnapshot {
+  id                  Int                        @id @default(autoincrement())
+  propertyId          Int                        @map("property_id")
+  sourceCallId        Int                        @map("source_call_id")
+  valuationSnapshotId Int?                       @map("valuation_snapshot_id")
+  address             String
+  distanceMeters      Int?                       @map("distance_meters")
+  saleDate            DateTime?                  @map("sale_date")
+  salePriceEur        Int?                       @map("sale_price_eur")
+  surfaceAreaM2       Int?                       @map("surface_area_m2")
+  pricePerSqmEur      Int?                       @map("price_per_sqm_eur")
+  buildYear           Int?                       @map("build_year")
+  similarityScore     Decimal?                   @map("similarity_score") @db.Decimal(5, 2)
+  normalizedHash      String                     @map("normalized_hash")
+  fetchedAt           DateTime                   @default(now()) @map("fetched_at")
+  createdAt           DateTime                   @default(now()) @map("created_at")
+  updatedAt           DateTime                   @updatedAt @map("updated_at")
+  property            Property                   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sourceCall          PropertySourceCall         @relation(fields: [sourceCallId], references: [id], onDelete: Cascade)
+  valuationSnapshot   PropertyValuationSnapshot? @relation(fields: [valuationSnapshotId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId, fetchedAt])
+  @@index([sourceCallId])
+  @@index([valuationSnapshotId])
+  @@index([normalizedHash])
+  @@map("property_comparable_sale_snapshots")
 }

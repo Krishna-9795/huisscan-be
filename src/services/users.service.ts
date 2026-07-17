@@ -50,18 +50,27 @@ export class UsersService {
   }
 
   async getCurrentUser(userId: number) {
-    const user = await this.usersRepository.findById(userId);
+    const user = await this.usersRepository.findProfileById(userId);
 
     if (!user) {
       throw new Error("User not found");
     }
 
-    return toPublicUser(user);
+    return toPublicUserProfile(user);
   }
 
   async updateCurrentUser(userId: number, input: UpdateUserInput) {
-    const user = await this.usersRepository.update(userId, input);
-    return toPublicUser(user);
+    const { preferences, email, ...userInput } = input;
+    const user = await this.usersRepository.updateProfile(
+      userId,
+      {
+        ...userInput,
+        ...(email ? { email: email.toLowerCase() } : {}),
+      },
+      preferences,
+    );
+
+    return toPublicUserProfile(user);
   }
 
   async getAllUsers() {

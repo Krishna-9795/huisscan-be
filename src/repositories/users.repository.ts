@@ -21,9 +21,20 @@ type CreateUserPreferenceData = {
 };
 
 type UpdateUserData = {
-  name?: string;
-  phone?: string;
-  city?: string;
+  email?: string;
+  name?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  avatarColor?: string;
+};
+
+type UpdateUserPreferenceData = {
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  preferredCities?: string[];
+  propertyType?: "ANY" | "APARTMENT" | "HOUSE" | "TOWNHOUSE";
+  bedroomsMin?: number | null;
+  buyingStage?: "EXPLORING" | "SEARCHING" | "VIEWING" | "OFFER_MADE" | "PURCHASED";
 };
 
 export class UsersRepository {
@@ -86,6 +97,42 @@ export class UsersRepository {
       data: {
         ...data,
       },
+    });
+  }
+
+  updateProfile(
+    id: number,
+    data: UpdateUserData,
+    preferences?: UpdateUserPreferenceData,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data,
+      });
+
+      if (preferences) {
+        await tx.userPreference.upsert({
+          where: { userId: id },
+          update: preferences,
+          create: {
+            userId: id,
+            preferredCities: preferences.preferredCities ?? [],
+            ...preferences,
+          },
+        });
+      }
+
+      const user = await tx.user.findUnique({
+        where: { id },
+        include: { preferences: true },
+      });
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      return user;
     });
   }
 }

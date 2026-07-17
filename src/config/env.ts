@@ -1,6 +1,9 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 
 import { z } from "zod";
+
+loadEnv({ path: ".env.local" });
+loadEnv();
 
 const booleanFromEnv = z.preprocess((value) => {
   if (typeof value === "boolean") return value;
@@ -38,6 +41,10 @@ const envSchema = z
       .default("Muiderbos 1, 2134 SM, Hoofddorp"),
     MOLLIE_API_KEY: z.string().min(1).optional(),
     MOLLIE_TEST_API_KEY: z.string().min(1).optional(),
+    AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    AWS_USER_REGION: z.string().min(1).optional(),
+    AWS_STORAGE_BUCKET_NAME: z.string().min(1).optional(),
   })
   .superRefine((env, context) => {
     const hasMollieKey = Boolean(env.MOLLIE_API_KEY || env.MOLLIE_TEST_API_KEY);

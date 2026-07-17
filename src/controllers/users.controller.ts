@@ -29,11 +29,7 @@ export async function createUserProfile(
 
 export async function getMe(request: FastifyRequest, reply: FastifyReply) {
   const usersService = new UsersService(request.server.prisma);
-  const user = await usersService.getUserById(request.user.userId);
-
-  if (!user) {
-    throw request.server.httpErrors.notFound("User not found");
-  }
+  const user = await usersService.getCurrentUser(request.user.userId);
 
   return reply.send(successResponse(user));
 }

@@ -5,6 +5,7 @@ import {
   Prisma,
   PrismaClient,
   ReportPayment,
+  UserReportArtifact,
   UserRole,
 } from "@prisma/client";
 
@@ -18,6 +19,7 @@ import { InvoicesRepository } from "../repositories/invoices.repository";
 import { ReportPaymentsRepository } from "../repositories/report-payments.repository";
 import { SavedReportsRepository } from "../repositories/saved-reports.repository";
 import { UserAddressSearchesService } from "./user-address-searches.service";
+import { ReportPriceSettingsService } from "./report-price-settings.service";
 
 type CreateCheckoutResult = {
   checkoutUrl: string;
@@ -47,17 +49,13 @@ type CreateMollieCheckoutOptions = {
   userId?: number;
 };
 
-const REPORT_PRICES_CENTS: Record<ReportType, number> = {
-  "property-report": 495,
-  "last-sale-report": 999,
-  "sold-home-benchmark-report": 999,
-};
 const PAID_REPORT_ACCESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export class ReportPaymentsService {
   private readonly invoicesRepository: InvoicesRepository;
   private readonly reportPaymentsRepository: ReportPaymentsRepository;
   private readonly savedReportsRepository: SavedReportsRepository;
+  private readonly reportPriceSettingsService: ReportPriceSettingsService;
   private readonly userAddressSearchesService: UserAddressSearchesService;
   private readonly mollieClient: MollieClientService;
 
@@ -68,6 +66,7 @@ export class ReportPaymentsService {
     this.invoicesRepository = new InvoicesRepository(prisma);
     this.reportPaymentsRepository = new ReportPaymentsRepository(prisma);
     this.savedReportsRepository = new SavedReportsRepository(prisma);
+    this.reportPriceSettingsService = new ReportPriceSettingsService(prisma);
     this.userAddressSearchesService = new UserAddressSearchesService(prisma);
     this.mollieClient = mollieClient;
   }
@@ -77,7 +76,9 @@ export class ReportPaymentsService {
     options: CreateMollieCheckoutOptions = {},
   ): Promise<CreateCheckoutResult> {
     const checkoutToken = createCheckoutToken();
-    const amountCents = REPORT_PRICES_CENTS[input.reportType];
+    const amountCents = await this.reportPriceSettingsService.getAmountCents(
+      input.reportType,
+    );
     const userId =
       options.userId ?? (await this.getSavedReportOwnerId(input.reportId));
     const backendUrl = getPublicBackendUrl();
@@ -569,7 +570,9 @@ function toJsonValue(value: unknown) {
   return value as Prisma.InputJsonValue;
 }
 
-function toPublicReportPayment(payment: ReportPayment) {
+function toPublicReportPayment(
+  payment: ReportPayment & { artifacts?: UserReportArtifact[] },
+) {
   return {
     id: payment.id,
     userId: payment.userId,
@@ -583,6 +586,18 @@ function toPublicReportPayment(payment: ReportPayment) {
     currency: payment.currency,
     status: payment.status,
     checkoutUrl: payment.checkoutUrl,
+    artifacts: (payment.artifacts ?? []).map((artifact) => ({
+      id: artifact.id,
+      userId: artifact.userId,
+      reportPaymentId: artifact.reportPaymentId,
+      artifactType: artifact.artifactType,
+      storageKey: artifact.storageKey,
+      publicUrl: artifact.publicUrl,
+      fileName: artifact.fileName,
+      status: artifact.status,
+      createdAt: artifact.createdAt,
+      updatedAt: artifact.updatedAt,
+    })),
     paidAt: payment.paidAt,
     createdAt: payment.createdAt,
     updatedAt: payment.updatedAt,

@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { env } from "./config/env";
 import corsPlugin from "./plugins/cors";
 import jwtPlugin from "./plugins/jwt";
+import multipartPlugin from "./plugins/multipart";
 import prismaPlugin from "./plugins/prisma";
 import sensiblePlugin from "./plugins/sensible";
 import routes from "./routes";
@@ -16,6 +17,7 @@ export async function buildApp() {
   await app.register(corsPlugin);
   await app.register(sensiblePlugin);
   await app.register(jwtPlugin);
+  await app.register(multipartPlugin);
   await app.register(prismaPlugin);
   app.addHook("onRequest", async (request, reply) => {
     const normalizedUrl = normalizeDuplicateApiPrefix(request.url);
