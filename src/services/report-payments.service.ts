@@ -380,10 +380,13 @@ function buildMollieReturnUrl({
 }
 
 function buildPaidReportUrl(payment: ReportPayment) {
+  const reportType = payment.reportType as ReportType;
+
   return buildReportUrl({
-    reportType: payment.reportType as ReportType,
+    reportType,
     reportId: payment.reportId,
-    returnTo: payment.returnTo ?? undefined,
+    address: payment.address ?? undefined,
+    returnTo: getMatchingPaidReturnTo(reportType, payment.returnTo ?? undefined),
     paymentState: "paid",
     paymentId: payment.molliePaymentId,
     checkoutToken: payment.checkoutToken,
@@ -418,6 +421,7 @@ function buildFallbackReportUrl({
 function buildReportUrl({
   reportType,
   reportId,
+  address,
   returnTo,
   paymentState,
   paymentId,
@@ -425,6 +429,7 @@ function buildReportUrl({
 }: {
   reportType: ReportType;
   reportId: string;
+  address?: string;
   returnTo?: string;
   paymentState: "paid" | "cancelled" | "failed";
   paymentId?: string;
@@ -433,7 +438,7 @@ function buildReportUrl({
   const url =
     returnTo && isSafeReturnTo(returnTo)
       ? new URL(returnTo, getFrontendUrl())
-      : new URL(getReportPath(reportType, reportId), getFrontendUrl());
+      : new URL(getReportPath(reportType, reportId, address), getFrontendUrl());
 
   url.searchParams.set("payment", paymentState);
 
@@ -459,15 +464,60 @@ function isSafeReturnTo(returnTo: string) {
   }
 }
 
-function getReportPath(reportType: ReportType, reportId: string) {
+function getMatchingPaidReturnTo(
+  reportType: ReportType,
+  returnTo: string | undefined,
+) {
+  if (!returnTo || !isSafeReturnTo(returnTo)) {
+    return undefined;
+  }
+
+  try {
+    const returnUrl = new URL(returnTo, getFrontendUrl());
+    return matchesReportPath(reportType, returnUrl.pathname)
+      ? returnTo
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function matchesReportPath(reportType: ReportType, pathname: string) {
   switch (reportType) {
     case "property-report":
-      return `/report/${encodeURIComponent(reportId)}`;
+      return pathname.startsWith("/report/");
     case "last-sale-report":
-      return `/last-sale-report?id=${encodeURIComponent(reportId)}`;
+      return pathname === "/last-sale-report";
     case "sold-home-benchmark-report":
-      return `/sold-home-benchmark-report?id=${encodeURIComponent(reportId)}`;
+      return pathname === "/sold-home-benchmark-report";
   }
+}
+
+function getReportPath(reportType: ReportType, reportId: string, address?: string) {
+  switch (reportType) {
+    case "property-report":
+      return withAddress(`/report/${encodeURIComponent(reportId)}`, address);
+    case "last-sale-report":
+      return withAddress(
+        `/last-sale-report?id=${encodeURIComponent(reportId)}`,
+        address,
+      );
+    case "sold-home-benchmark-report":
+      return withAddress(
+        `/sold-home-benchmark-report?id=${encodeURIComponent(reportId)}`,
+        address,
+      );
+  }
+}
+
+function withAddress(pathnameAndSearch: string, address?: string) {
+  if (!address) {
+    return pathnameAndSearch;
+  }
+
+  const url = new URL(pathnameAndSearch, getFrontendUrl());
+  url.searchParams.set("address", address);
+  return `${url.pathname}${url.search}`;
 }
 
 function getFailureState(status: string): "cancelled" | "failed" {
