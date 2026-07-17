@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { getBearerToken } from "../helpers/jwt";
 import { successResponse } from "../helpers/response";
+import { env } from "../config/env";
 import { SessionsRepository } from "../repositories/sessions.repository";
 import {
   createMolliePaymentSchema,
@@ -51,6 +52,10 @@ export async function createMolliePayment(
   const userId = await resolvePaymentUserId(request, body);
 
   if (!userId) {
+    if (!wantsJson(request)) {
+      return reply.redirect(buildLoginRedirectUrl(request, body.returnTo), 303);
+    }
+
     return reply.status(401).send({
       success: false,
       message: "A valid authToken or bearer token is required",
@@ -159,6 +164,45 @@ export async function handleMollieWebhook(
 function wantsJson(request: FastifyRequest) {
   const accept = request.headers.accept ?? "";
   return accept.includes("application/json");
+}
+
+function buildLoginRedirectUrl(request: FastifyRequest, returnTo: string | undefined) {
+  const appUrl = (env.PUBLIC_APP_URL || env.FRONTEND_URL).replace(/\/+$/, "");
+  const redirectUrl = new URL("/auth", appUrl);
+  const safeReturnTo = getSafeReturnTo(returnTo) || getRefererPath(request);
+
+  if (safeReturnTo) {
+    redirectUrl.searchParams.set("returnTo", safeReturnTo);
+  }
+
+  return redirectUrl.toString();
+}
+
+function getSafeReturnTo(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(value, "https://huisvalue.local");
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function getRefererPath(request: FastifyRequest) {
+  const referer = request.headers.referer;
+  if (!referer) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(referer);
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizePaymentBody(body: unknown) {
