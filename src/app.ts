@@ -8,6 +8,7 @@ import multipartPlugin from "./plugins/multipart";
 import prismaPlugin from "./plugins/prisma";
 import sensiblePlugin from "./plugins/sensible";
 import routes from "./routes";
+import paymentsRoutes from "./routes/payments.routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -27,6 +28,7 @@ export async function buildApp() {
     }
   });
   await app.register(routes, { prefix: env.API_PREFIX });
+  await registerLegacyApiAliases(app);
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
@@ -54,6 +56,14 @@ export async function buildApp() {
   });
 
   return app;
+}
+
+async function registerLegacyApiAliases(app: FastifyInstance) {
+  if (env.API_PREFIX === "/api") {
+    return;
+  }
+
+  await app.register(paymentsRoutes, { prefix: "/api/payments" });
 }
 
 function requestLogError(app: FastifyInstance, error: Error) {

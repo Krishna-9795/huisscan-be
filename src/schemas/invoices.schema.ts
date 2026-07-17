@@ -5,13 +5,22 @@ export const invoiceIdParamsSchema = z.object({
 });
 
 export const invoiceUserQuerySchema = z.object({
-  user_id: z.coerce
-    .number({
-      invalid_type_error: "user_id must be a number",
-    })
-    .int()
-    .positive("user_id is required")
-    .optional(),
+  user_id: z.preprocess(
+    (value) => {
+      if (value === undefined || value === null || value === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.coerce
+      .number({
+        invalid_type_error: "user_id must be a number",
+      })
+      .int()
+      .positive("user_id is required")
+      .optional(),
+  ),
 });
 
 export type InvoiceIdParams = z.infer<typeof invoiceIdParamsSchema>;
