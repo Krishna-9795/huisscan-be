@@ -43,8 +43,10 @@ const envSchema = z
     MOLLIE_TEST_API_KEY: z.string().min(1).optional(),
     AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
     AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    AWS_SESSION_TOKEN: z.string().min(1).optional(),
     AWS_USER_REGION: z.string().min(1).optional(),
     AWS_STORAGE_BUCKET_NAME: z.string().min(1).optional(),
+    SENDER_EMAIL: z.string().email().optional(),
   })
   .superRefine((env, context) => {
     const hasMollieKey = Boolean(env.MOLLIE_API_KEY || env.MOLLIE_TEST_API_KEY);
