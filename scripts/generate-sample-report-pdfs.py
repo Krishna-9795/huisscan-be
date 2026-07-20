@@ -384,7 +384,7 @@ def build_last_sale_pdf() -> Path:
             sample_badge(),
             Spacer(1, 8),
             p("Last Sale Detail", "title"),
-            p("The report separates known Kadaster history from estimated market movement so buyers can see what is fact and what is modeled.", "subtitle"),
+            p("The paid PDF highlights the actual values from the report being viewed: last sale price, indexed value, asking price, seller intelligence, and bid-relevant price signals.", "subtitle"),
             kpi_cards(
                 [
                     ("Property type", TARGET["property_type"], "Residential use"),
@@ -395,37 +395,43 @@ def build_last_sale_pdf() -> Path:
                     ("Value range high", euro(TARGET["value_high"]), "Upper estimate"),
                 ]
             ),
-            p("Transaction history", "h2"),
+            p("Last sale and indexed value", "h2"),
             simple_table(
                 [
-                    ["Date", "Price", "Price per m2", "Type"],
-                    ["12 Mar 2020", "EUR 547.000", "EUR 6.435", "Sale"],
-                    ["29 Jul 2014", "EUR 389.500", "EUR 4.582", "Sale"],
-                    ["14 Feb 2009", "EUR 312.000", "EUR 3.671", "Auction"],
-                    ["08 May 2003", "EUR 235.000", "EUR 2.765", "Sale"],
+                    ["Field", "Value", "How it is used"],
+                    ["Last sale date", TARGET["last_sale_date"], "Shows when the seller bought the home."],
+                    ["Last sale price", euro(TARGET["last_sale_price"]), "Ground truth anchor from Kadaster."],
+                    ["Indexed value", euro(TARGET["indexed_value"]), "CBS/Kadaster market movement applied to the last sale."],
+                    ["Current asking price", euro(TARGET["asking_price"]), "Compared against indexed value and local growth."],
                 ],
-                [37, 42, 42, 53],
+                [45, 44, 85],
             ),
-            p("What customers can learn", "h2"),
+            p("Seller intelligence", "h2"),
+            simple_table(
+                [
+                    ["Signal", "Value", "Buyer meaning"],
+                    ["Estimated seller gain", euro(TARGET["indexed_value"] - TARGET["last_sale_price"]), f"{pct(nums['indexed_growth'])} indexed appreciation."],
+                    ["Seller premium", pct(nums["premium"]), "Asking price compared with indexed value."],
+                    ["Years held", "6+ years", "Normal tenure; no short-hold warning in this example."],
+                    ["Price verdict", "Slight premium", "Negotiate using indexed value as the first anchor."],
+                ],
+                [45, 44, 85],
+            ),
+            p("Price assessment", "h2"),
+            simple_table(
+                [
+                    ["Metric", "Value", "Why it matters"],
+                    ["Value range low", euro(TARGET["value_low"]), "Conservative estimate."],
+                    ["Balanced value", euro(TARGET["estimated_value"]), "Indexed value used as the buyer anchor."],
+                    ["Value range high", euro(TARGET["value_high"]), "Upper estimate before comparable-sale checks."],
+                    ["Asking premium", pct(nums["premium"]), "How much the seller is asking above indexed value."],
+                ],
+                [45, 44, 85],
+            ),
             insight_box(
                 "Negotiation angle",
                 "Use the indexed value as a grounded anchor, then compare with the Sold Homes Benchmark report when you need recent local sale evidence for your offer ceiling.",
                 colors.HexColor("#fff7ed"),
-            ),
-            PageBreak(),
-            sample_badge(),
-            Spacer(1, 8),
-            p("Data Notes", "title"),
-            p("This sample is representative of the paid report format. A live paid report resolves the selected address and uses the customer-specific report id.", "subtitle"),
-            simple_table(
-                [
-                    ["Data block", "Source used in live report", "Sample status"],
-                    ["Last sale price/date", "Kadaster transaction data", "Modeled demo data"],
-                    ["Indexed value", "CBS/Kadaster existing-home price index", "Modeled demo data"],
-                    ["Target facts", "Cached HuisValue property report", "Demo property facts"],
-                    ["Comparable context", "Nearby Kadaster sales", "Demo comparable sales"],
-                ],
-                [45, 77, 52],
             ),
             p("Important disclaimer", "h2"),
             p(
