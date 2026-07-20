@@ -44,8 +44,140 @@ const DASHBOARD_CACHE_SUBDIR = "dashboard";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_DASHBOARD_CACHE_DAYS = 30;
 
+type MutableRecord = Record<string, unknown>;
+
 function normalizeAddressKey(address: string) {
   return address.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function asRecord(value: unknown): MutableRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as MutableRecord)
+    : null;
+}
+
+function asPositiveNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function dateToYearPeriod(date: unknown): string | null {
+  if (typeof date !== "string" || !date.trim()) return null;
+
+  const text = date.trim();
+  const bareYear = text.match(/^\d{4}$/);
+  if (bareYear) return `${bareYear[0]}JJ00`;
+
+  const compact = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compact) return `${compact[1]}JJ00`;
+
+  const iso = text.match(/^(\d{4})-\d{2}-\d{2}/);
+  if (iso) return `${iso[1]}JJ00`;
+
+  const dutchDate = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dutchDate) return `${dutchDate[3]}JJ00`;
+
+  const yearInText = text.match(/\b(19|20)\d{2}\b/);
+  if (yearInText) return `${yearInText[0]}JJ00`;
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return `${parsed.getFullYear()}JJ00`;
+}
+
+function completedAnnualTargetYear(now = new Date()) {
+  return now.getFullYear() - 1;
+}
+
+function shouldUseRecentSaleBaseline(latestPurchaseDate: unknown) {
+  const salePeriod = dateToYearPeriod(latestPurchaseDate);
+  if (!salePeriod) return false;
+
+  const saleYear = Number(salePeriod.slice(0, 4));
+  return Number.isFinite(saleYear) && saleYear >= completedAnnualTargetYear();
+}
+
+function buildRecentSaleBaselineIndex(
+  latestPurchasePrice: number,
+  latestPurchaseDate: unknown,
+  address: MutableRecord,
+) {
+  const salePeriod = dateToYearPeriod(latestPurchaseDate) ?? `${completedAnnualTargetYear()}JJ00`;
+  const regionName =
+    typeof address.municipality === "string" && address.municipality.trim()
+      ? address.municipality
+      : "recent sale";
+
+  return {
+    salePeriod,
+    saleIndex: 1,
+    currentPeriod: salePeriod,
+    currentIndex: 1,
+    factor: 1,
+    indexedValue: latestPurchasePrice,
+    growthPercentage: 0,
+    purchasePrice: latestPurchasePrice,
+    sourceTable: "83625ENG",
+    sourceTitle: "CBS existing own homes; recent-sale baseline",
+    sourceUrl: "https://opendata.cbs.nl/ODataApi/OData/83625ENG",
+    regionCode:
+      typeof address.municipalityCode === "string" && address.municipalityCode.trim()
+        ? address.municipalityCode
+        : "RECENT",
+    regionName,
+    regionLevel:
+      typeof address.municipalityCode === "string" && address.municipalityCode.trim()
+        ? "municipality"
+        : "national",
+    periodFrequency: "yearly",
+    metricLabel: "Recent sale baseline",
+    metricValueKind: "index",
+    formula: `${latestPurchasePrice} × (1 ÷ 1) = ${latestPurchasePrice}`,
+    explanation:
+      `The Kadaster sale is in ${salePeriod.slice(0, 4)}, and there is no completed CBS annual period after that sale year yet. ` +
+      `Until a newer completed CBS period exists for ${regionName}, the indexed sale price stays equal to the latest Kadaster sale price: €${latestPurchasePrice.toLocaleString("nl-NL")}.`,
+  };
+}
+
+function withRecentSaleIndexedMarket(data: unknown): unknown {
+  const root = asRecord(data);
+  const cards = asRecord(root?.cards);
+  const market = asRecord(cards?.market);
+  const property = asRecord(cards?.property);
+  const address = asRecord(root?.address) ?? {};
+
+  if (!root || !cards || !market) return data;
+  if (market.cbsPriceIndex || asPositiveNumber(market.estimatedValue)) return data;
+
+  const latestPurchasePrice = asPositiveNumber(market.latestPurchasePrice);
+  if (!latestPurchasePrice || !shouldUseRecentSaleBaseline(market.latestPurchaseDate)) {
+    return data;
+  }
+
+  const livingArea = asPositiveNumber(property?.livingArea);
+  const pricePerSqm = livingArea
+    ? Math.round(latestPurchasePrice / livingArea)
+    : market.pricePerSqm;
+
+  return {
+    ...root,
+    cards: {
+      ...cards,
+      market: {
+        ...market,
+        estimatedValue: latestPurchasePrice,
+        valueLow: Math.round(latestPurchasePrice * 0.95),
+        valueHigh: Math.round(latestPurchasePrice * 1.05),
+        pricePerSqm,
+        confidence: livingArea ? "Medium" : "Low",
+        cbsPriceIndex: buildRecentSaleBaselineIndex(
+          latestPurchasePrice,
+          market.latestPurchaseDate,
+          address,
+        ),
+      },
+    },
+  };
 }
 
 function parseAllowedAddresses() {
@@ -142,7 +274,7 @@ export class KadasterDashboardCacheService {
     if (bestRedisCandidate) {
       return {
         cacheKey: bestRedisCandidate.cacheKey,
-        data: bestRedisCandidate.data,
+        data: withRecentSaleIndexedMarket(bestRedisCandidate.data),
         expiresAt: bestRedisCandidate.expiresAt,
         stale: bestRedisCandidate.stale,
         source: "redis",
@@ -178,7 +310,7 @@ export class KadasterDashboardCacheService {
     const migratedToRedis = await this.tryWriteRedisCandidate(bestLegacyCandidate);
     return {
       cacheKey: bestLegacyCandidate.cacheKey,
-      data: bestLegacyCandidate.data,
+      data: withRecentSaleIndexedMarket(bestLegacyCandidate.data),
       expiresAt: bestLegacyCandidate.expiresAt,
       stale: bestLegacyCandidate.stale,
       source: "legacy-file",
