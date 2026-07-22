@@ -1,8 +1,13 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 
 import { successResponse } from "../helpers/response";
-import { kadasterDashboardQuerySchema } from "../schemas/kadaster-dashboard.schema";
+import { env } from "../config/env";
+import {
+  archiveKadasterDashboardSchema,
+  kadasterDashboardQuerySchema,
+} from "../schemas/kadaster-dashboard.schema";
 import { KadasterDashboardCacheService } from "../services/kadaster-dashboard-cache.service";
+import { KadasterPropertyArchiveService } from "../services/kadaster-property-archive.service";
 
 export async function getKadasterDashboard(
   request: FastifyRequest,
@@ -47,4 +52,29 @@ export async function getKadasterDashboard(
   return reply.send(
     successResponse(cachedDashboard.data, "Cached Kadaster dashboard loaded"),
   );
+}
+
+export async function archiveKadasterDashboard(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  if (env.KADASTER_ARCHIVE_TOKEN) {
+    const authorization = request.headers.authorization || "";
+    const expected = `Bearer ${env.KADASTER_ARCHIVE_TOKEN}`;
+
+    if (authorization !== expected) {
+      return reply.status(401).send({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+  }
+
+  const body = archiveKadasterDashboardSchema.parse(request.body);
+  const archiveService = new KadasterPropertyArchiveService(request.server.prisma);
+  const result = await archiveService.archiveDashboard(body);
+
+  return reply
+    .status(201)
+    .send(successResponse(result, "Kadaster property data archived"));
 }

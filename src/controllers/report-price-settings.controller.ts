@@ -45,11 +45,17 @@ export async function updateReportPriceSetting(
     {
       reportType,
       amountCents: body.amountCents,
+      vatSlabId: body.vatSlabId,
+      vatType: body.vatType,
       label: body.label,
       currency: body.currency,
     },
     request.user,
   );
 
-  return reply.send(successResponse({ price }));
+  if (price.status === "vat_slab_not_found") {
+    throw request.server.httpErrors.badRequest("VAT slab not found");
+  }
+
+  return reply.send(successResponse({ price: price.price }));
 }

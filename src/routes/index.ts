@@ -12,6 +12,7 @@ import userReportArtifactsRoutes from "./user-report-artifacts.routes";
 import kadasterDashboardRoutes from "./kadaster-dashboard.routes";
 import uploadsRoutes from "./uploads.routes";
 import reportPriceSettingsRoutes from "./report-price-settings.routes";
+import vatSlabsRoutes from "./vat-slabs.routes";
 import funnelEventsRoutes from "./funnel-events.routes";
 import reportSharesRoutes from "./report-shares.routes";
 
@@ -25,6 +26,7 @@ export default async function routes(app: FastifyInstance) {
   await app.register(userReportArtifactsRoutes, { prefix: "/report-artifacts" });
   await app.register(kadasterDashboardRoutes, { prefix: "/kadaster-dashboard" });
   await app.register(reportPriceSettingsRoutes, { prefix: "/report-prices" });
+  await app.register(vatSlabsRoutes, { prefix: "/vat-slabs" });
   await app.register(reportSharesRoutes, { prefix: "/report-shares" });
   await app.register(funnelEventsRoutes, { prefix: "/funnel-events" });
   await app.register(soldHomeBenchmarkReportRoutes);

@@ -10,11 +10,13 @@ export type UploadFileInput = {
   buffer: Buffer;
   filename: string;
   mimetype: string;
+  key?: string;
 };
 
 export type UploadedFile = {
   key: string;
   bucket: string;
+  publicUrl: string;
   originalFilename: string;
   contentType: string;
   size: number;
@@ -23,16 +25,21 @@ export type UploadedFile = {
 export class UploadsService {
   private readonly s3Client: S3Client;
   private readonly bucketName: string;
+  private readonly region: string;
+  private readonly publicBaseUrl?: string;
 
   constructor() {
     const config = getS3Config();
 
     this.bucketName = config.bucketName;
+    this.region = config.region;
+    this.publicBaseUrl = config.publicBaseUrl;
     this.s3Client = new S3Client({
       region: config.region,
       credentials: {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
+        sessionToken: config.sessionToken,
       },
     });
   }
@@ -42,7 +49,7 @@ export class UploadsService {
       throw new UnsupportedFileTypeError(input.mimetype);
     }
 
-    const key = createUploadKey(input.filename);
+    const key = input.key ?? createUploadKey(input.filename);
 
     await this.s3Client.send(
       new PutObjectCommand({
@@ -56,10 +63,19 @@ export class UploadsService {
     return {
       key,
       bucket: this.bucketName,
+      publicUrl: this.getPublicUrl(key),
       originalFilename: input.filename,
       contentType: input.mimetype,
       size: input.buffer.length,
     };
+  }
+
+  getPublicUrl(key: string) {
+    if (this.publicBaseUrl) {
+      return `${this.publicBaseUrl.replace(/\/$/, "")}/${encodeS3Key(key)}`;
+    }
+
+    return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${encodeS3Key(key)}`;
   }
 }
 
@@ -72,8 +88,10 @@ export class UnsupportedFileTypeError extends Error {
 function getS3Config() {
   const accessKeyId = env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken = env.AWS_SESSION_TOKEN;
   const region = env.AWS_USER_REGION;
   const bucketName = env.AWS_STORAGE_BUCKET_NAME;
+  const publicBaseUrl = env.AWS_S3_PUBLIC_BASE_URL;
 
   if (!accessKeyId || !secretAccessKey || !region || !bucketName) {
     const missing = [
@@ -91,8 +109,10 @@ function getS3Config() {
   return {
     accessKeyId,
     secretAccessKey,
+    sessionToken,
     region,
     bucketName,
+    publicBaseUrl,
   };
 }
 
@@ -111,4 +131,8 @@ function createUploadKey(filename: string) {
     .replace(/^-+|-+$/g, "");
 
   return `uploads/${timestamp}-${randomUUID()}-${safeFilename || "file"}`;
+}
+
+function encodeS3Key(key: string) {
+  return key.split("/").map(encodeURIComponent).join("/");
 }

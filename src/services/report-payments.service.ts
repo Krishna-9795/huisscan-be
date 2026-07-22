@@ -20,6 +20,7 @@ import { ReportPaymentsRepository } from "../repositories/report-payments.reposi
 import { SavedReportsRepository } from "../repositories/saved-reports.repository";
 import { UserAddressSearchesService } from "./user-address-searches.service";
 import { ReportPriceSettingsService } from "./report-price-settings.service";
+import { InvoicePdfService } from "./invoice-pdf.service";
 
 type CreateCheckoutResult = {
   checkoutUrl: string;
@@ -49,6 +50,19 @@ type CreateMollieCheckoutOptions = {
   userId?: number;
 };
 
+type InvoicePricingSnapshot = {
+  amountCents: number;
+  subtotalAmountCents: number;
+  vatAmountCents: number;
+  totalAmountCents: number;
+  currency: string;
+  vatType: "ZERO" | "INCLUSIVE" | "EXCLUSIVE";
+  vatRateBps: number;
+  vatSlabId: number | null;
+  vatSlabCode: string | null;
+  vatSlabName: string | null;
+};
+
 const PAID_REPORT_ACCESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export class ReportPaymentsService {
@@ -57,6 +71,7 @@ export class ReportPaymentsService {
   private readonly savedReportsRepository: SavedReportsRepository;
   private readonly reportPriceSettingsService: ReportPriceSettingsService;
   private readonly userAddressSearchesService: UserAddressSearchesService;
+  private readonly invoicePdfService: InvoicePdfService;
   private readonly mollieClient: MollieClientService;
 
   constructor(
@@ -68,6 +83,7 @@ export class ReportPaymentsService {
     this.savedReportsRepository = new SavedReportsRepository(prisma);
     this.reportPriceSettingsService = new ReportPriceSettingsService(prisma);
     this.userAddressSearchesService = new UserAddressSearchesService(prisma);
+    this.invoicePdfService = new InvoicePdfService(prisma);
     this.mollieClient = mollieClient;
   }
 
@@ -76,9 +92,11 @@ export class ReportPaymentsService {
     options: CreateMollieCheckoutOptions = {},
   ): Promise<CreateCheckoutResult> {
     const checkoutToken = createCheckoutToken();
-    const amountCents = await this.reportPriceSettingsService.getAmountCents(
+    const priceSetting = await this.reportPriceSettingsService.getByReportType(
       input.reportType,
     );
+    const pricingSnapshot = createPricingSnapshot(priceSetting);
+    const amountCents = pricingSnapshot.totalAmountCents;
     const userId =
       options.userId ?? (await this.getSavedReportOwnerId(input.reportId));
     const backendUrl = getPublicBackendUrl();
@@ -95,6 +113,7 @@ export class ReportPaymentsService {
       userId: userId ?? null,
       address: input.address ?? null,
       returnTo: input.returnTo ?? null,
+      pricingSnapshot,
     };
 
     const molliePayment = await this.mollieClient.createPayment({
@@ -324,19 +343,25 @@ export class ReportPaymentsService {
     }
 
     if (payment.invoiceId) {
+      const invoice = await this.invoicesRepository.findById(payment.invoiceId);
+      if (invoice) {
+        await this.invoicePdfService.ensurePdfForInvoice(invoice);
+      }
+
       return payment.invoiceId;
     }
 
+    const pricingSnapshot = getInvoicePricingSnapshot(payment);
     const invoice = await this.invoicesRepository.createOnceByProviderPayment({
+      ...pricingSnapshot,
       userId: payment.userId,
       number: createInvoiceNumber(payment.molliePaymentId),
       description: getInvoiceDescription(payment),
-      amountCents: payment.amountCents,
-      currency: payment.currency,
       status: InvoiceStatus.PAID,
       provider: "mollie",
       providerId: payment.molliePaymentId,
     });
+    await this.invoicePdfService.ensurePdfForInvoice(invoice);
 
     return invoice.id;
   }
@@ -539,6 +564,108 @@ function getInvoiceDescription(payment: ReportPayment) {
 
 function createInvoiceNumber(molliePaymentId: string) {
   return `HS-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${molliePaymentId.slice(-8).toUpperCase()}`;
+}
+
+function createPricingSnapshot(price: {
+  amountCents: number;
+  netAmountCents: number;
+  vatAmountCents: number;
+  totalAmountCents: number;
+  currency: string;
+  vatType: "ZERO" | "INCLUSIVE" | "EXCLUSIVE";
+  vatSlabId: number;
+  vatSlab: {
+    code: string;
+    name: string;
+    rateBps: number;
+  };
+}): InvoicePricingSnapshot {
+  return {
+    amountCents: price.totalAmountCents,
+    subtotalAmountCents: price.netAmountCents,
+    vatAmountCents: price.vatAmountCents,
+    totalAmountCents: price.totalAmountCents,
+    currency: price.currency,
+    vatType: price.vatType,
+    vatRateBps: price.vatSlab.rateBps,
+    vatSlabId: price.vatSlabId,
+    vatSlabCode: price.vatSlab.code,
+    vatSlabName: price.vatSlab.name,
+  };
+}
+
+function getInvoicePricingSnapshot(payment: ReportPayment): InvoicePricingSnapshot {
+  const metadata = asJsonObject(payment.metadata);
+  const snapshot = asJsonObject(metadata?.pricingSnapshot);
+  const amountCents = numberFromUnknown(snapshot?.amountCents);
+  const subtotalAmountCents = numberFromUnknown(snapshot?.subtotalAmountCents);
+  const vatAmountCents = numberFromUnknown(snapshot?.vatAmountCents);
+  const totalAmountCents = numberFromUnknown(snapshot?.totalAmountCents);
+  const vatRateBps = numberFromUnknown(snapshot?.vatRateBps);
+  const vatType = vatTypeFromUnknown(snapshot?.vatType);
+
+  if (
+    amountCents !== null &&
+    subtotalAmountCents !== null &&
+    vatAmountCents !== null &&
+    totalAmountCents !== null &&
+    vatRateBps !== null &&
+    vatType
+  ) {
+    return {
+      amountCents,
+      subtotalAmountCents,
+      vatAmountCents,
+      totalAmountCents,
+      currency: stringFromUnknown(snapshot?.currency) ?? payment.currency,
+      vatType,
+      vatRateBps,
+      vatSlabId: numberFromUnknown(snapshot?.vatSlabId),
+      vatSlabCode: stringFromUnknown(snapshot?.vatSlabCode),
+      vatSlabName: stringFromUnknown(snapshot?.vatSlabName),
+    };
+  }
+
+  return {
+    amountCents: payment.amountCents,
+    subtotalAmountCents: payment.amountCents,
+    vatAmountCents: 0,
+    totalAmountCents: payment.amountCents,
+    currency: payment.currency,
+    vatType: "EXCLUSIVE",
+    vatRateBps: 0,
+    vatSlabId: null,
+    vatSlabCode: null,
+    vatSlabName: null,
+  };
+}
+
+function asJsonObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function stringFromUnknown(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function vatTypeFromUnknown(
+  value: unknown,
+): "ZERO" | "INCLUSIVE" | "EXCLUSIVE" | null {
+  return value === "ZERO" || value === "INCLUSIVE" || value === "EXCLUSIVE"
+    ? value
+    : null;
 }
 
 function formatEuroAmount(amountCents: number) {

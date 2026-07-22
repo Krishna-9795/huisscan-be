@@ -34,6 +34,7 @@ const envSchema = z
     PUBLIC_APP_URL: z.string().url().optional(),
     PUBLIC_API_URL: z.string().url().optional(),
     KADASTER_DASHBOARD_CACHE_DIR: z.string().min(1).optional(),
+    KADASTER_ARCHIVE_TOKEN: z.string().min(1).optional(),
     KADASTER_LIVE_CALLS_ENABLED: booleanFromEnv.default(false),
     KADASTER_ALLOWED_ADDRESS_MODE: z.enum(["one", "list", "all"]).default("one"),
     KADASTER_ALLOWED_ADDRESSES: z
@@ -46,6 +47,7 @@ const envSchema = z
     AWS_SESSION_TOKEN: z.string().min(1).optional(),
     AWS_USER_REGION: z.string().min(1).optional(),
     AWS_STORAGE_BUCKET_NAME: z.string().min(1).optional(),
+    AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
     SENDER_EMAIL: z.string().email().optional(),
   })
   .superRefine((env, context) => {

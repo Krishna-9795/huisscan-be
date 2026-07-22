@@ -24,6 +24,12 @@ enum InvoiceStatus {
   REFUNDED
 }
 
+enum VatPriceType {
+  ZERO
+  INCLUSIVE
+  EXCLUSIVE
+}
+
 enum PropertyType {
   ANY
   APARTMENT
@@ -73,18 +79,18 @@ enum ValuationConfidence {
 }
 
 model User {
-  id              Int                 @id @default(autoincrement())
-  email           String              @unique
+  id              Int                  @id @default(autoincrement())
+  email           String               @unique
   name            String?
   phone           String?
   city            String?
-  avatarColor     String              @default("brand")
+  avatarColor     String               @default("brand")
   passwordHash    String?
-  role            UserRole            @default(USER)
-  plan            SubscriptionPlan    @default(FREE)
+  role            UserRole             @default(USER)
+  plan            SubscriptionPlan     @default(FREE)
   emailVerified   DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   preferences     UserPreference?
   sessions        Session[]
   savedReports    SavedReport[]
@@ -143,46 +149,58 @@ model SavedReport {
 }
 
 model Invoice {
-  id              Int                 @id @default(autoincrement())
-  userId          Int
-  number          String              @unique
-  description     String
-  amountCents     Int
-  currency        String              @default("EUR")
-  status          InvoiceStatus       @default(PAID)
-  provider        String?
-  providerId      String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reportPayment   ReportPayment?
-  addressSearches UserAddressSearch[]
+  id                  Int                 @id @default(autoincrement())
+  userId              Int
+  number              String              @unique
+  description         String
+  amountCents         Int
+  subtotalAmountCents Int                 @default(0) @map("subtotal_amount_cents")
+  vatAmountCents      Int                 @default(0) @map("vat_amount_cents")
+  totalAmountCents    Int                 @default(0) @map("total_amount_cents")
+  currency            String              @default("EUR")
+  vatType             VatPriceType        @default(EXCLUSIVE) @map("vat_type")
+  vatRateBps          Int                 @default(0) @map("vat_rate_bps")
+  vatSlabId           Int?                @map("vat_slab_id")
+  vatSlabCode         String?             @map("vat_slab_code")
+  vatSlabName         String?             @map("vat_slab_name")
+  status              InvoiceStatus       @default(PAID)
+  provider            String?
+  providerId          String?
+  pdfUrl              String?
+  pdfStorageKey       String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vatSlab             VatSlab?            @relation(fields: [vatSlabId], references: [id], onDelete: SetNull)
+  reportPayment       ReportPayment?
+  addressSearches     UserAddressSearch[]
 
   @@unique([provider, providerId])
   @@index([userId])
+  @@index([vatSlabId])
   @@map("invoices")
 }
 
 model ReportPayment {
-  id              Int                 @id @default(autoincrement())
+  id              Int                  @id @default(autoincrement())
   userId          Int?
-  invoiceId       Int?                @unique
-  molliePaymentId String              @unique
-  checkoutToken   String              @unique
+  invoiceId       Int?                 @unique
+  molliePaymentId String               @unique
+  checkoutToken   String               @unique
   reportType      String
   reportId        String
   address         String?
   amountCents     Int
-  currency        String              @default("EUR")
+  currency        String               @default("EUR")
   status          String
   checkoutUrl     String?
   returnTo        String?
   metadata        Json?
   paidAt          DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
-  invoice         Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  user            User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invoice         Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   artifacts       UserReportArtifact[]
   addressSearches UserAddressSearch[]
 
@@ -193,18 +211,38 @@ model ReportPayment {
 }
 
 model ReportPriceSetting {
-  id              Int      @id @default(autoincrement())
-  reportType      String   @unique @map("report_type")
+  id              Int          @id @default(autoincrement())
+  reportType      String       @unique @map("report_type")
   label           String
-  amountCents     Int      @map("amount_cents")
-  currency        String   @default("EUR")
-  isActive        Boolean  @default(true) @map("is_active")
-  updatedByUserId Int?     @map("updated_by_user_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  amountCents     Int          @map("amount_cents")
+  currency        String       @default("EUR")
+  vatSlabId       Int          @map("vat_slab_id")
+  vatType         VatPriceType @default(EXCLUSIVE) @map("vat_type")
+  isActive        Boolean      @default(true) @map("is_active")
+  updatedByUserId Int?         @map("updated_by_user_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  vatSlab         VatSlab      @relation(fields: [vatSlabId], references: [id], onDelete: Restrict)
 
   @@index([isActive])
+  @@index([vatSlabId])
   @@map("report_price_settings")
+}
+
+model VatSlab {
+  id                  Int                  @id @default(autoincrement())
+  code                String               @unique
+  name                String
+  rateBps             Int                  @map("rate_bps")
+  vatType             VatPriceType         @default(EXCLUSIVE) @map("vat_type")
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  reportPriceSettings ReportPriceSetting[]
+  invoices            Invoice[]
+
+  @@index([isActive])
+  @@map("vat_slabs")
 }
 
 model FunnelEvent {
@@ -223,7 +261,7 @@ model FunnelEvent {
   currency      String?
   metadata      Json?
   userAgent     String?  @map("user_agent")
-  referer        String?
+  referer       String?
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([eventName])
@@ -247,8 +285,8 @@ model UserReportArtifact {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reportPayment   ReportPayment @relation(fields: [reportPaymentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportPayment ReportPayment @relation(fields: [reportPaymentId], references: [id], onDelete: Cascade)
 
   @@unique([reportPaymentId, artifactType])
   @@index([userId])

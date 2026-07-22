@@ -1,10 +1,12 @@
 import { PrismaClient, UserRole } from "@prisma/client";
 
 import { ReportType } from "../schemas/payments.schema";
+import { calculateVatBreakdown, VatPriceType } from "../helpers/vat";
 import {
   ReportPriceSettingRow,
   ReportPriceSettingsRepository,
 } from "../repositories/report-price-settings.repository";
+import { VatSlabsRepository } from "../repositories/vat-slabs.repository";
 
 type CurrentUser = {
   userId: number;
@@ -14,6 +16,8 @@ type CurrentUser = {
 type UpdateReportPriceInput = {
   reportType: ReportType;
   amountCents: number;
+  vatSlabId?: number;
+  vatType?: VatPriceType;
   label?: string;
   currency?: string;
 };
@@ -44,9 +48,11 @@ const DEFAULT_REPORT_PRICE_SETTINGS: Record<
 
 export class ReportPriceSettingsService {
   private readonly reportPriceSettingsRepository: ReportPriceSettingsRepository;
+  private readonly vatSlabsRepository: VatSlabsRepository;
 
   constructor(prisma: PrismaClient) {
     this.reportPriceSettingsRepository = new ReportPriceSettingsRepository(prisma);
+    this.vatSlabsRepository = new VatSlabsRepository(prisma);
   }
 
   async getAll() {
@@ -68,21 +74,43 @@ export class ReportPriceSettingsService {
 
   async getAmountCents(reportType: ReportType) {
     const setting = await this.getByReportType(reportType);
-    return setting.amountCents;
+    return setting.totalAmountCents;
   }
 
   async update(input: UpdateReportPriceInput, currentUser: CurrentUser) {
     const fallback = DEFAULT_REPORT_PRICE_SETTINGS[input.reportType];
+    const fallbackVatSlab = await this.getDefaultVatSlab();
+    const existing =
+      await this.reportPriceSettingsRepository.findByReportType(input.reportType);
+    const vatSlab =
+      input.vatSlabId === undefined && existing
+        ? await this.vatSlabsRepository.findById(existing.vat_slab_id)
+        : input.vatSlabId === undefined
+        ? fallbackVatSlab
+        : await this.vatSlabsRepository.findById(input.vatSlabId);
+
+    if (!vatSlab) {
+      return {
+        status: "vat_slab_not_found" as const,
+      };
+    }
+    const vatType = vatSlab.vatType;
+
     const row = await this.reportPriceSettingsRepository.upsert({
       reportType: input.reportType,
       label: input.label ?? fallback.label,
       amountCents: input.amountCents,
       currency: input.currency ?? fallback.currency,
+      vatSlabId: vatSlab.id,
+      vatType,
       isActive: true,
       updatedByUserId: currentUser.userId,
     });
 
-    return toPublicReportPriceSetting(row);
+    return {
+      status: "ok" as const,
+      price: toPublicReportPriceSetting(row),
+    };
   }
 
   private async ensureDefaults() {
@@ -99,11 +127,29 @@ export class ReportPriceSettingsService {
     if (existing) return existing;
 
     const fallback = DEFAULT_REPORT_PRICE_SETTINGS[reportType];
+    const vatSlab = await this.getDefaultVatSlab();
     return this.reportPriceSettingsRepository.upsert({
       reportType,
       label: fallback.label,
       amountCents: fallback.amountCents,
       currency: fallback.currency,
+      vatSlabId: vatSlab.id,
+      vatType: vatSlab.vatType,
+      isActive: true,
+    });
+  }
+
+  private async getDefaultVatSlab() {
+    const existing = await this.vatSlabsRepository.findByCode("VAT_0");
+    if (existing) {
+      return existing;
+    }
+
+    return this.vatSlabsRepository.create({
+      code: "VAT_0",
+      name: "0% VAT",
+      rateBps: 0,
+      vatType: "ZERO",
       isActive: true,
     });
   }
@@ -123,6 +169,11 @@ function defaultRow(reportType: ReportType): ReportPriceSettingRow {
     label: fallback.label,
     amount_cents: fallback.amountCents,
     currency: fallback.currency,
+    vat_slab_id: 0,
+    vat_type: "ZERO",
+    vat_slab_code: "VAT_0",
+    vat_slab_name: "0% VAT",
+    vat_rate_bps: 0,
     is_active: true,
     updated_by_user_id: null,
     created_at: now,
@@ -132,13 +183,31 @@ function defaultRow(reportType: ReportType): ReportPriceSettingRow {
 
 function toPublicReportPriceSetting(row: ReportPriceSettingRow) {
   const reportType = row.report_type as ReportType;
+  const breakdown = calculateVatBreakdown({
+    amountCents: row.amount_cents,
+    vatRateBps: row.vat_rate_bps,
+    vatType: row.vat_type,
+  });
 
   return {
     id: row.id,
     reportType,
     label: row.label,
     amountCents: row.amount_cents,
+    netAmountCents: breakdown.netAmountCents,
+    vatAmountCents: breakdown.vatAmountCents,
+    totalAmountCents: breakdown.totalAmountCents,
+    vatType: row.vat_type,
     currency: row.currency,
+    vatSlabId: row.vat_slab_id,
+    vatSlab: {
+      id: row.vat_slab_id,
+      code: row.vat_slab_code,
+      name: row.vat_slab_name,
+      rateBps: row.vat_rate_bps,
+      ratePercent: row.vat_rate_bps / 100,
+      vatType: row.vat_type,
+    },
     isActive: row.is_active,
     updatedByUserId: row.updated_by_user_id,
     sortOrder: DEFAULT_REPORT_PRICE_SETTINGS[reportType]?.order ?? 99,

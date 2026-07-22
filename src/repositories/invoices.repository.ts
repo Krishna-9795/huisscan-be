@@ -5,10 +5,23 @@ type CreateInvoiceData = {
   number: string;
   description: string;
   amountCents: number;
+  subtotalAmountCents: number;
+  vatAmountCents: number;
+  totalAmountCents: number;
   currency: string;
+  vatType: "ZERO" | "INCLUSIVE" | "EXCLUSIVE";
+  vatRateBps: number;
+  vatSlabId?: number | null;
+  vatSlabCode?: string | null;
+  vatSlabName?: string | null;
   status: InvoiceStatus;
   provider: string;
   providerId: string;
+};
+
+type InvoicePdfStorageData = {
+  pdfUrl: string;
+  pdfStorageKey: string;
 };
 
 export class InvoicesRepository {
@@ -78,6 +91,13 @@ export class InvoicesRepository {
       data,
     });
   }
+
+  updatePdfStorage(id: number, data: InvoicePdfStorageData) {
+    return this.prisma.invoice.update({
+      where: { id },
+      data,
+    });
+  }
 }
 
 export function toPublicInvoice(invoice: Invoice) {
@@ -87,10 +107,20 @@ export function toPublicInvoice(invoice: Invoice) {
     number: invoice.number,
     description: invoice.description,
     amountCents: invoice.amountCents,
+    subtotalAmountCents: invoice.subtotalAmountCents,
+    vatAmountCents: invoice.vatAmountCents,
+    totalAmountCents: invoice.totalAmountCents,
     currency: invoice.currency,
+    vatType: invoice.vatType,
+    vatRateBps: invoice.vatRateBps,
+    vatSlabId: invoice.vatSlabId,
+    vatSlabCode: invoice.vatSlabCode,
+    vatSlabName: invoice.vatSlabName,
     status: invoice.status,
     provider: invoice.provider,
     providerId: invoice.providerId,
+    pdfUrl: invoice.pdfUrl,
+    pdfStorageKey: invoice.pdfStorageKey,
     createdAt: invoice.createdAt,
     updatedAt: invoice.updatedAt,
   };
