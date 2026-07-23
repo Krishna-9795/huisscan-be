@@ -58,8 +58,8 @@ function createInvoicePageContent(input: InvoicePdfInput) {
   const parts = [
     rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, [0.98, 0.98, 0.99]),
     rect(0, PAGE_HEIGHT - 116, PAGE_WIDTH, 116, [0.2, 0.13, 0.38]),
-    text("HuisValue", 48, 774, 24, "F2", [1, 1, 1]),
-    text("Smart property reports for the Netherlands", 48, 754, 10, "F1", [
+    huisValueLogo(48, 758, 162, 42),
+    text("Smart property reports for the Netherlands", 48, 742, 10, "F1", [
       0.86,
       0.84,
       0.92,
@@ -168,6 +168,66 @@ function line(
   color: [number, number, number],
 ) {
   return `${color.join(" ")} RG\n1 w\n${x1} ${y1} m ${x2} ${y2} l S\n`;
+}
+
+function huisValueLogo(x: number, y: number, width: number, height: number) {
+  const iconX = x + 10;
+  const iconY = y + 9;
+  const iconWidth = 30;
+  const iconHeight = 24;
+  const wordX = iconX + iconWidth + 10;
+  const wordY = y + 14;
+
+  return [
+    rect(x, y, width, height, [1, 1, 1]),
+    diamondSegment(
+      [
+        [iconX + 2, iconY + 14],
+        [iconX + 8, iconY + iconHeight],
+        [iconX + 15, iconY + iconHeight],
+        [iconX + 11, iconY + 14],
+        [iconX + 2, iconY + 14],
+        [iconX + 15, iconY],
+        [iconX + 15, iconY + 12],
+        [iconX + 11, iconY + 14],
+      ],
+      [0.91, 0.1, 0.6],
+    ),
+    diamondSegment(
+      [
+        [iconX + 15, iconY + iconHeight],
+        [iconX + 22, iconY + iconHeight],
+        [iconX + 28, iconY + 14],
+        [iconX + 19, iconY + 14],
+        [iconX + 15, iconY + iconHeight],
+        [iconX + 19, iconY + 14],
+        [iconX + 15, iconY + 12],
+        [iconX + 15, iconY],
+        [iconX + 28, iconY + 14],
+      ],
+      [0.45, 0.12, 0.94],
+    ),
+    text("huis", wordX, wordY, 17, "F2", [0.91, 0.1, 0.6]),
+    text("value", wordX + 36, wordY, 17, "F2", [0.45, 0.12, 0.94]),
+  ].join("");
+}
+
+function diamondSegment(
+  points: [number, number][],
+  color: [number, number, number],
+) {
+  const [start, ...rest] = points;
+
+  return [
+    `${color.join(" ")} RG`,
+    "3 w",
+    "1 J",
+    "1 j",
+    `${start[0].toFixed(2)} ${start[1].toFixed(2)} m`,
+    ...rest.map(([pointX, pointY]) => `${pointX.toFixed(2)} ${pointY.toFixed(2)} l`),
+    "S",
+    "",
+  ].join("\n");
 }
 
 function escapePdfText(value: string) {

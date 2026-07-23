@@ -31,6 +31,8 @@ const envSchema = z
       .enum(["development", "test", "production"])
       .default("development"),
     FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+    ADMIN_FRONTEND_URL: z.string().url().optional(),
+    FRONTEND_URLS: z.string().optional(),
     PUBLIC_APP_URL: z.string().url().optional(),
     PUBLIC_API_URL: z.string().url().optional(),
     KADASTER_DASHBOARD_CACHE_DIR: z.string().min(1).optional(),

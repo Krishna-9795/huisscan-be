@@ -26,6 +26,8 @@ type UpdateUserData = {
   phone?: string | null;
   city?: string | null;
   avatarColor?: string;
+  plan?: "FREE" | "PRO";
+  passwordHash?: string;
 };
 
 type UpdateUserPreferenceData = {
@@ -61,6 +63,13 @@ export class UsersRepository {
 
   findAll() {
     return this.prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  findAllByRole(role: UserRole) {
+    return this.prisma.user.findMany({
+      where: { role },
       orderBy: { createdAt: "desc" },
     });
   }

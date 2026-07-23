@@ -1,12 +1,16 @@
 import { PrismaClient } from "@prisma/client";
 
+import { hashPassword } from "../helpers/password";
 import {
   UsersRepository,
   toPublicUser,
   toPublicUserProfile,
 } from "../repositories/users.repository";
 import {
+  CreateAdminUserInput,
   CreateUserProfileInput,
+  UpdateAdminPasswordInput,
+  UpdateAdminUserInput,
   UpdateUserInput,
 } from "../schemas/users.schema";
 
@@ -84,6 +88,81 @@ export class UsersService {
     if (!user) {
       return null;
     }
+
+    return toPublicUser(user);
+  }
+
+  async getAllAdmins() {
+    const users = await this.usersRepository.findAllByRole("ADMIN");
+    return users.map(toPublicUser);
+  }
+
+  async getAdminById(id: number) {
+    const user = await this.usersRepository.findById(id);
+
+    if (!user || user.role !== "ADMIN") {
+      return null;
+    }
+
+    return toPublicUser(user);
+  }
+
+  async createAdmin(input: CreateAdminUserInput) {
+    const email = input.email.toLowerCase();
+    const existingUser = await this.usersRepository.findByEmail(email);
+
+    if (existingUser) {
+      return null;
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    const user = await this.usersRepository.create({
+      email,
+      name: input.name,
+      phone: input.phone ?? undefined,
+      city: input.city ?? undefined,
+      avatarColor: input.avatarColor,
+      plan: input.plan,
+      role: "ADMIN",
+      passwordHash,
+    });
+
+    return toPublicUser(user);
+  }
+
+  async updateAdmin(id: number, input: UpdateAdminUserInput) {
+    const existingUser = await this.usersRepository.findById(id);
+
+    if (!existingUser || existingUser.role !== "ADMIN") {
+      return { status: "not-found" as const };
+    }
+
+    if (input.email) {
+      const nextEmail = input.email.toLowerCase();
+      const emailOwner = await this.usersRepository.findByEmail(nextEmail);
+
+      if (emailOwner && emailOwner.id !== id) {
+        return { status: "email-conflict" as const };
+      }
+    }
+
+    const user = await this.usersRepository.update(id, {
+      ...input,
+      ...(input.email ? { email: input.email.toLowerCase() } : {}),
+    });
+
+    return { status: "updated" as const, user: toPublicUser(user) };
+  }
+
+  async updateAdminPassword(id: number, input: UpdateAdminPasswordInput) {
+    const existingUser = await this.usersRepository.findById(id);
+
+    if (!existingUser || existingUser.role !== "ADMIN") {
+      return null;
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    const user = await this.usersRepository.update(id, { passwordHash });
 
     return toPublicUser(user);
   }

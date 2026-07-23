@@ -88,6 +88,32 @@ export const updateUserSchema = z.object({
   preferences: updateUserPreferenceSchema.optional(),
 });
 
+export const createAdminUserSchema = z.object({
+  email: z.string().trim().email(),
+  name: z.string().trim().min(2).max(100).optional(),
+  phone: nullableTrimmedString(5, 30).optional(),
+  city: nullableTrimmedString(2, 100).optional(),
+  avatarColor: z.string().trim().min(1).default("brand"),
+  plan: z.enum(["FREE", "PRO"]).default("PRO"),
+  password: z.string().min(8).max(100),
+});
+
+export const updateAdminUserSchema = z.object({
+  email: z.string().trim().email().optional(),
+  name: nullableTrimmedString(2, 100).optional(),
+  phone: nullableTrimmedString(5, 30).optional(),
+  city: nullableTrimmedString(2, 100).optional(),
+  avatarColor: z.string().trim().min(1).optional(),
+  plan: z.enum(["FREE", "PRO"]).optional(),
+});
+
+export const updateAdminPasswordSchema = z.object({
+  password: z.string().min(8).max(100),
+});
+
 export type UserIdParams = z.infer<typeof userIdParamsSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type CreateUserProfileInput = z.infer<typeof createUserProfileSchema>;
+export type CreateAdminUserInput = z.infer<typeof createAdminUserSchema>;
+export type UpdateAdminUserInput = z.infer<typeof updateAdminUserSchema>;
+export type UpdateAdminPasswordInput = z.infer<typeof updateAdminPasswordSchema>;
